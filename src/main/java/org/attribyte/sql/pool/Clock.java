@@ -49,6 +49,13 @@ final class Clock {
    }
 
    /**
+    * Shuts down the clock thread.
+    */
+   static void shutdown() {
+      clockThread.interrupt();
+   }
+
+   /**
     * The current time, +- 30s.
     */
    volatile static long currTimeMillis = System.currentTimeMillis();
