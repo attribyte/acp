@@ -15,26 +15,19 @@
 
 package org.attribyte.sql.pool;
 
+import org.attribyte.api.ConsoleLogger;
+import org.junit.After;
+import org.junit.Test;
+
+import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.*;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-
 import static org.junit.Assert.*;
-
-import java.io.ByteArrayInputStream;
-import java.sql.Connection;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.DocumentBuilder;
-
-import org.attribyte.api.ConsoleLogger;
 
 /**
  * Segment tests.
@@ -55,15 +48,15 @@ public class ConnectionPoolSegmentTest {
    private final ExecutorService testService = Executors.newFixedThreadPool(MAX_THREADS);
    private static ScheduledThreadPoolExecutor inactiveMonitorService = new ScheduledThreadPoolExecutor(1);
 
-   private final ConnectionPoolSegment createSegment() throws Exception {
+   private ConnectionPoolSegment createSegment() throws Exception {
       return createSegment(datasource);
    }
 
-   private final ConnectionPoolSegment createBrokenSegment() throws Exception {
+   private ConnectionPoolSegment createBrokenSegment() throws Exception {
       return createSegment(brokenDatasource);
    }
 
-   private final ConnectionPoolSegment createSegment(TestDataSource datasource) throws Exception {
+   private ConnectionPoolSegment createSegment(TestDataSource datasource) throws Exception {
 
       if(segment != null) {
          segment.shutdown();
@@ -91,7 +84,7 @@ public class ConnectionPoolSegmentTest {
       return segment;
    }
 
-   private final ConnectionPoolSegment createSegmentWithRandomFail() throws Exception {
+   private ConnectionPoolSegment createSegmentWithRandomFail() throws Exception {
 
       if(segment != null) {
          segment.shutdown();
@@ -125,31 +118,6 @@ public class ConnectionPoolSegmentTest {
          segment.shutdown();
       }
       segment = null;
-   }
-
-   @Test
-   public void xmlConfig() throws Exception {
-
-      String xml =
-              "<segment name=\"pool0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\" maxConcurrentReconnects=\"3\">" +
-                      "<connection user=\"test\" password=\"pass\" testSQL=\"testsql\" connectionString=\"cs\" debug=\"true\">" +
-                      "<acquireTimeout time=\"5\" timeUnit=\"seconds\"/>" +
-                      "<activeTimeout time=\"5\" timeUnit=\"milliseconds\"/>" +
-                      "<lifetime time=\"500\" timeUnit=\"hours\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"5\" timeUnit=\"seconds\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment segment = ConnectionPoolSegment.Initializer.fromXML("pool0", elem, null).createSegment();
-      assertNotNull(segment);
-      assertEquals(5, segment.getMaxConnections());
-      assertTrue(segment.testOnLogicalOpen);
-      assertFalse(segment.testOnLogicalClose);
-      assertEquals(5000, segment.acquireTimeoutMillis);
-      assertTrue(segment.dbConnection.debug);
    }
 
    @Test
@@ -228,7 +196,7 @@ public class ConnectionPoolSegmentTest {
          Thread.sleep(1000L);
       }
 
-      ConnectionPoolSegment.Stats stats = segment.getStats().getSnapshot();
+      ConnectionPoolSegment.Stats stats = segment.getStats();
 
       assertTrue(segment.isIdle());
       assertEquals(0, stats.getFailedConnectionErrorCount());
@@ -332,17 +300,14 @@ public class ConnectionPoolSegmentTest {
       assertTrue(stats.isActive());
       assertEquals(100, stats.getConnectionCount());
       assertTrue(stats.getLastActivatedTime() > 0L);
-      assertTrue(stats.getAverageTPS() > 0.0);
 
       //Deactivate records the cumulative active time
       segment.deactivate();
-      assertTrue(stats.getActiveTPS() > 0.0);
 
       //Wait for a bit while inactive
       Thread.sleep(2000L);
 
       assertTrue(stats.getCumulativeActiveTimeMillis() > 1000L);
-      assertTrue(stats.getActiveTPS() > stats.getAverageTPS());
       assertFalse(stats.isActive());
    }
 }
