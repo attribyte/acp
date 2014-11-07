@@ -15,15 +15,11 @@
 
 package org.attribyte.sql.pool;
 
+import com.google.common.base.Strings;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import java.sql.SQLException;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.attribyte.api.InitializationException;
-import org.attribyte.util.DOMUtil;
-import org.attribyte.util.StringUtil;
-import org.w3c.dom.Element;
 
 /**
  * Various utility methods and constants.
@@ -117,133 +113,6 @@ final class Util {
    }
 
    /**
-    * Gets milliseconds from a time string.
-    * <p>e.g.</p>
-    * <ul>
-    * <li>100ms</li>
-    * <li>5s</li>
-    * <li>30m</li>
-    * <li>5h</li>
-    * <li>3d</li>
-    * </ul>
-    * @param time The time string.
-    * @param defaultTime The default time to return if time string is unspecified or units are invalid.
-    * @return The milliseconds, or 0 if unspecified.
-    */
-   static final long millis(String time, final long defaultTime) {
-
-      if(time == null || time.trim().length() == 0) {
-         return defaultTime;
-      }
-
-      time = time.trim();
-
-      long mult = 0L;
-      if(time.endsWith("ms")) {
-         time = time.substring(0, time.length() - 2);
-         mult = 1L;
-      } else if(time.endsWith("s")) {
-         time = time.substring(0, time.length() - 1);
-         mult = 1000L;
-      } else if(time.endsWith("m")) {
-         time = time.substring(0, time.length() - 1);
-         mult = 60000L;
-      } else if(time.endsWith("h")) {
-         time = time.substring(0, time.length() - 1);
-         mult = 3600L * 1000L;
-      } else if(time.endsWith("d")) {
-         time = time.substring(0, time.length() - 1);
-         mult = 3600L * 1000L * 24L;
-      }
-
-      long millis = Long.parseLong(time) * mult;
-      if(millis < 1) {
-         return defaultTime;
-      } else {
-         return millis;
-      }
-   }
-
-   /**
-    * Get milliseconds from an element.
-    * <p>
-    * Expects time="10ms" or time="10" timeUnit="milliseconds".
-    * </p>
-    * @param parentElem The parent element.
-    * @param elemName The child element name.
-    * @param defaultValue The default value returned if the element is not found.
-    * @return The time in milliseconds.
-    * @throws InitializationException on invalid units or format.
-    */
-   static final long millisFromElem(final Element parentElem, final String elemName, final long defaultValue)
-           throws InitializationException {
-      return millisFromElem(parentElem, "time", elemName, defaultValue);
-   }
-
-   /**
-    * Get milliseconds from an element.
-    * <p>
-    * Expects time="10ms" or time="10" timeUnit="milliseconds".
-    * </p>
-    * @param parentElem The parent element.
-    * @param attribName The time attribute name.
-    * @param elemName The child element name.
-    * @param defaultValue The default value returned if the element is not found.
-    * @return The time in milliseconds.
-    * @throws InitializationException on invalid units or format.
-    */
-   static final long millisFromElem(final Element parentElem, final String attribName, final String elemName, final long defaultValue)
-           throws InitializationException {
-
-      Element elem = DOMUtil.getFirstChild(parentElem, elemName);
-      if(elem != null) {
-         String time = elem.getAttribute(attribName).toLowerCase();
-         if(time.length() == 0) {
-            throw new InitializationException("A 'time' must be specified for '" + elemName + "'");
-         }
-
-         long mult = 0L;
-         if(time.endsWith("ms")) {
-            time = time.substring(0, time.length() - 2);
-            mult = 1L;
-         } else if(time.endsWith("s")) {
-            time = time.substring(0, time.length() - 1);
-            mult = 1000L;
-         } else if(time.endsWith("m")) {
-            time = time.substring(0, time.length() - 1);
-            mult = 60000L;
-         } else if(time.endsWith("h")) {
-            time = time.substring(0, time.length() - 1);
-            mult = 3600L * 1000L;
-         } else if(time.endsWith("d")) {
-            time = time.substring(0, time.length() - 1);
-            mult = 3600L * 1000L * 24L;
-         }
-
-         String unit = elem.getAttribute("timeUnit");
-         if(mult == 0L && unit.length() == 0) {
-            throw new InitializationException("The 'time' for '" + elemName + "' must have units (ms,s,m,h,d)");
-         } else if(unit.length() > 0) {
-            TimeUnit timeUnit = TimeUnit.valueOf(unit.trim().toUpperCase());
-            if(timeUnit == null) {
-               throw new InitializationException("The 'timeUnit' for '" + elemName + "' is invalid");
-            } else {
-               mult = TimeUnit.MILLISECONDS.convert(1L, timeUnit);
-            }
-         }
-
-         try {
-            long timeVal = Integer.parseInt(time);
-            return timeVal * mult;
-         } catch(Exception e) {
-            throw new InitializationException("The 'time' must be an integer for '" + elemName + "'");
-         }
-      } else {
-         return defaultValue;
-      }
-   }
-
-   /**
     * Creates a thread factory builder.
     * @param baseName The (optional) base name.
     * @param componentName The (required) component name.
@@ -252,7 +121,7 @@ final class Util {
    static ThreadFactory createThreadFactoryBuilder(final String baseName, final String componentName) {
 
       StringBuilder buf = new StringBuilder("ACP:");
-      if(StringUtil.hasContent(baseName)) {
+      if(!Strings.isNullOrEmpty(baseName)) {
          buf.append(baseName).append(":").append(componentName);
       } else {
          buf.append(componentName);
