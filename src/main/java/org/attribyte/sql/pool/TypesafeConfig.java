@@ -196,17 +196,18 @@ public class TypesafeConfig {
       Config segmentRef = ConfigFactory.load().getObject("acp.defaults.segment").toConfig();
 
       for(String segmentName : segmentNames) {
-         Config segmentConfig = segmentConfigMap.get(segmentName).withFallback(segmentRef);
+         Config segmentConfig = segmentConfigMap.get(segmentName);
          String cloneSegmentName = getString(segmentConfig, "clone", "");
          ConnectionPoolSegment.Initializer segmentInitializer;
          ConnectionPoolSegment.Initializer baseInitializer = initializerMap.get(cloneSegmentName);
          if(cloneSegmentName.length() > 0 && baseInitializer == null) {
             throw new InitializationException("Forward/Invalid 'clone' reference to " + cloneSegmentName);
          } else if(baseInitializer == null) {
+            segmentConfig = segmentConfig.withFallback(segmentRef);
             segmentInitializer = new ConnectionPoolSegment.Initializer();
          } else {
             Config cloneSegmentConfig = segmentConfigMap.get(cloneSegmentName);
-            segmentConfig = segmentConfig.withFallback(cloneSegmentConfig);
+            segmentConfig = segmentConfig.withFallback(cloneSegmentConfig).withFallback(segmentRef);
             segmentInitializer = new ConnectionPoolSegment.Initializer(baseInitializer);
          }
 
