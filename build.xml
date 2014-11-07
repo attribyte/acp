@@ -29,13 +29,19 @@
     <target name="dist" depends="compile" description="Creates the distribution">
         <mkdir dir="dist/lib"/>
         <mkdir dir="dist/extlib"/>
-        <jar jarfile="dist/lib/attribyte-acp.0.6.0.jar" basedir="build"/>
+        <jar destfile="dist/lib/acp-0.6.0.jar">
+            <fileset dir="build/"/>
+            <fileset file="doc/config/reference.conf"/>
+        </jar>
     </target>
 
     <target name="full-dist" depends="compile" description="Creates the distribution with a copy of all dependencies">
         <mkdir dir="dist/lib"/>
         <mkdir dir="dist/extlib"/>
-        <jar jarfile="dist/lib/attribyte-acp.0.6.0.jar" basedir="build"/>
+        <jar destfile="dist/lib/acp-0.6.0.jar">
+            <fileset dir="build/"/>
+            <fileset file="doc/config/reference.conf"/>
+        </jar>
         <ivy:retrieve pattern="dist/extlib/[organisation]-[artifact]-[revision].[ext]"
                       conf="compile"/>
     </target>
