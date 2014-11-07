@@ -106,6 +106,7 @@ public class MultiSegmentPoolTest {
                  .addActiveSegment(segment1)
                  .addReserveSegment(segment2)
                  .setMinActiveSegments(1)
+                 .setMinSegmentExpansionDelay(0L)
                  .setIdleCheckInterval(3, TimeUnit.SECONDS)
                  .setLogger(new ConsoleLogger()).createPool();
       } catch(Exception e) {

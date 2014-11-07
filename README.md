@@ -6,9 +6,21 @@ The connection pool provides logical database connections to an application from
 a pool of physical connections maintained by the pool.
 Connection pools are composed of segments that are used, activated, and deactivated in sequence in
 response to connection demand. When active, a segment provides logical connections
-from a fixed-size pool of physical connections. It doesn't have a lot of bells and whistles, like
-prepared statement caching. Testing and experience have shown that these make little difference and add
-complexity.
+from a fixed-size pool of physical connections.
+
+##Features
+
+* Pools and segments can be tuned for production environments.
+
+* Tuning can actually be accomplished because everything is measured.
+
+##Non-Features
+
+* Statement caching. Experience shows this rarely makes any difference, adds complexity, and can usually be accomplished
+  in the driver if it is really desired.
+
+*
+
 
 ##Configuration
 

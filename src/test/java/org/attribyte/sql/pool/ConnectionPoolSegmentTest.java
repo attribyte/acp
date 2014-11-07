@@ -63,7 +63,7 @@ public class ConnectionPoolSegmentTest {
          segment = null;
       }
 
-      JDBConnection jdbcConnection = new JDBConnection("conn1", "root", "", "jdbc:mysql://127.0.0.1/test", 40000L, "SELECT 1 FROM test", 200L, false);
+      JDBConnection jdbcConnection = new JDBConnection("test", "", "", datasource, 0L, "SELECT 1 FROM test", 400L, false);
 
       ConnectionPoolSegment.Initializer init = new ConnectionPoolSegment.Initializer();
       segment = init.setName("segment-test")
@@ -77,34 +77,6 @@ public class ConnectionPoolSegmentTest {
               .setMaxReconnectDelay(1, TimeUnit.SECONDS)
               .setSize(SEGMENT_SIZE)
               .setTestOnLogicalClose(false)
-              .setTestOnLogicalOpen(false)
-              .setLogger(new ConsoleLogger())
-              .createSegment();
-      segment.startActiveTimeoutMonitor(inactiveMonitorService);
-      return segment;
-   }
-
-   private ConnectionPoolSegment createSegmentWithRandomFail() throws Exception {
-
-      if(segment != null) {
-         segment.shutdown();
-         segment = null;
-      }
-
-      JDBConnection jdbcConnectionWithFail = new JDBConnection("conn1", "root", "", "jdbc:mysql://127.0.0.1/test", 40000L, "RANDOM FAIL", 200L, false);
-
-      ConnectionPoolSegment.Initializer init = new ConnectionPoolSegment.Initializer();
-      segment = init.setName("segment-test")
-              .setConnection(jdbcConnectionWithFail)
-              .setAcquireTimeout(10, TimeUnit.MILLISECONDS)
-              .setActiveTimeout(120, TimeUnit.SECONDS)
-              .setActiveTimeoutMonitorFrequency(5, TimeUnit.SECONDS)
-              .setCloseConcurrency(0)
-              .setConnectionLifetime(1, TimeUnit.HOURS)
-              .setMaxConcurrentReconnects(2)
-              .setMaxReconnectDelay(1, TimeUnit.SECONDS)
-              .setSize(200)
-              .setTestOnLogicalClose(true)
               .setTestOnLogicalOpen(false)
               .setLogger(new ConsoleLogger())
               .createSegment();

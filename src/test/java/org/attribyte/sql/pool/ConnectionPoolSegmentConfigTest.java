@@ -31,50 +31,6 @@ import static org.junit.Assert.*;
 public class ConnectionPoolSegmentConfigTest {
 
    @Test
-   public void xmlConfigWithPasswordSource() throws Exception {
-   }
-
-   @Test(expected = org.attribyte.api.InitializationException.class)
-   public void xmlConfigMissingUnits() throws Exception {
-   }
-
-   @Test(expected = org.attribyte.api.InitializationException.class)
-   public void xmlInvalidActiveTimeout() throws Exception {
-   }
-
-   @Test(expected = org.attribyte.api.InitializationException.class)
-   public void xmlInvalidLifetime() throws Exception {
-   }
-
-   @Test(expected = org.attribyte.api.InitializationException.class)
-   public void xmlInvalidReconnectMaxWait() throws Exception {
-   }
-
-   @Test(expected = org.attribyte.api.InitializationException.class)
-   public void xmlInvalidActiveTimeoutMonitorFrequency() throws Exception {
-   }
-
-   @Test
-   public void xmlConfigWithMap() throws Exception {
-
-      JDBConnection conn = new JDBConnection("test123", "test", "pass", "cs", 4L, "testsql", 200L, false);
-      Map<String, JDBConnection> connMap = new HashMap<String, JDBConnection>();
-      connMap.put("test123", conn);
-   }
-
-   @Test
-   public void xmlConfigPasswordSourceWithMap() throws Exception {
-
-      JDBConnection conn = new JDBConnection("test123", "test", "secret", "cs", 4L, "testsql", 200L, false);
-      Map<String, JDBConnection> connMap = new HashMap<String, JDBConnection>();
-      connMap.put("test123", conn);
-
-      Properties props = new Properties();
-      props.setProperty("test123", "pass");
-      //segmentInit.setPasswordSource(new PropertiesPasswordSource(props));
-   }
-
-   @Test
    public void propertiesConfig() throws Exception {
 
       JDBConnection conn1 = new JDBConnection("conn1", "test1", "secret1", "cs1", 4L, "testsql1", 200L, false);
