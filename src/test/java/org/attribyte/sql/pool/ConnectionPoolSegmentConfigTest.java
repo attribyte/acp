@@ -15,20 +15,15 @@
 
 package org.attribyte.sql.pool;
 
-import org.junit.*;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import org.junit.Test;
 
-import static org.junit.Assert.*;
-
-import java.io.ByteArrayInputStream;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import java.util.HashMap;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.DocumentBuilder;
 
-import org.attribyte.sql.pool.contrib.PropertiesPasswordSource;
+import static org.junit.Assert.*;
 
 /**
  * Segment config tests.
@@ -36,223 +31,27 @@ import org.attribyte.sql.pool.contrib.PropertiesPasswordSource;
 public class ConnectionPoolSegmentConfigTest {
 
    @Test
-   public void xmlConfig() throws Exception {
-
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection user=\"test\" password=\"pass\" testSQL=\"testsql\" connectionString=\"cs\">" +
-                      "<acquireTimeout time=\"5\" timeUnit=\"seconds\"/>" +
-                      "<activeTimeout time=\"5\" timeUnit=\"milliseconds\"/>" +
-                      "<lifetime time=\"1\" timeUnit=\"hours\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"4\" timeUnit=\"seconds\"/>" +
-                      "<activeTimeoutMonitor frequency=\"45\" timeUnit=\"seconds\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment segment = ConnectionPoolSegment.Initializer.fromXML("pool0", elem, null).createSegment();
-      assertNotNull(segment);
-      assertNotNull(segment.dbConnection);
-      assertEquals("test", segment.dbConnection.user);
-      assertEquals("pass", segment.dbConnection.password);
-      assertEquals("testsql", segment.dbConnection.testSQL);
-      assertEquals("cs", segment.dbConnection.connectionString);
-      assertEquals(2, segment.getCloserThreadCount());
-      assertEquals(3, segment.getMaxConcurrentReconnects());
-      assertEquals(4000, segment.maxReconnectDelayMillis);
-      assertEquals(5, segment.getMaxConnections());
-      assertTrue(segment.testOnLogicalOpen);
-      assertFalse(segment.testOnLogicalClose);
-      assertEquals(5000, segment.acquireTimeoutMillis);
-      assertEquals(5, segment.activeTimeoutMillis);
-      assertEquals(3600 * 1000, segment.connectionLifetimeMillis);
-      assertEquals("pool0:segment0", segment.name);
-   }
-
-   @Test
    public void xmlConfigWithPasswordSource() throws Exception {
-
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection user=\"test\" password=\"secret\" testSQL=\"testsql\" connectionString=\"cs\">" +
-                      "<acquireTimeout time=\"5\" timeUnit=\"seconds\"/>" +
-                      "<activeTimeout time=\"5\" timeUnit=\"milliseconds\"/>" +
-                      "<lifetime time=\"1\" timeUnit=\"hours\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"4\" timeUnit=\"seconds\"/>" +
-                      "<activeTimeoutMonitor frequency=\"45\" timeUnit=\"seconds\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment.Initializer segmentInit = ConnectionPoolSegment.Initializer.fromXML("pool0", elem, null);
-      Properties props = new Properties();
-      props.setProperty("test@cs", "pass");
-      segmentInit.setPasswordSource(new PropertiesPasswordSource(props));
-      ConnectionPoolSegment segment = segmentInit.createSegment();
-      assertNotNull(segment);
-      String password = segment.getPassword();
-      assertNotNull(password);
-      assertEquals("pass", password);
-   }
-
-   @Test
-   public void xmlConfigTimeUnits() throws Exception {
-
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection user=\"test\" password=\"pass\" testSQL=\"testsql\" connectionString=\"cs\">" +
-                      "<acquireTimeout time=\"5s\"/>" +
-                      "<activeTimeout time=\"5ms\"/>" +
-                      "<lifetime time=\"1h\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"4s\"/>" +
-                      "<activeTimeoutMonitor frequency=\"45s\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment segment = ConnectionPoolSegment.Initializer.fromXML("pool0", elem, null).createSegment();
-      assertNotNull(segment);
-      assertNotNull(segment.dbConnection);
-      assertEquals("test", segment.dbConnection.user);
-      assertEquals("pass", segment.dbConnection.password);
-      assertEquals("testsql", segment.dbConnection.testSQL);
-      assertEquals("cs", segment.dbConnection.connectionString);
-      assertEquals(2, segment.getCloserThreadCount());
-      assertEquals(3, segment.getMaxConcurrentReconnects());
-      assertEquals(4000, segment.maxReconnectDelayMillis);
-      assertEquals(5, segment.getMaxConnections());
-      assertTrue(segment.testOnLogicalOpen);
-      assertFalse(segment.testOnLogicalClose);
-      assertEquals(5000, segment.acquireTimeoutMillis);
-      assertEquals(5, segment.activeTimeoutMillis);
-      assertEquals(3600 * 1000, segment.connectionLifetimeMillis);
-      assertEquals("pool0:segment0", segment.name);
    }
 
    @Test(expected = org.attribyte.api.InitializationException.class)
    public void xmlConfigMissingUnits() throws Exception {
-
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection user=\"test\" password=\"pass\" testSQL=\"testsql\" connectionString=\"cs\">" +
-                      "<acquireTimeout time=\"5s\"/>" +
-                      "<activeTimeout time=\"5\"/>" +
-                      "<lifetime time=\"1h\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"4s\"/>" +
-                      "<activeTimeoutMonitor frequency=\"45s\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment.Initializer.fromXML("pool0", elem, null).createSegment();
-   }
-
-   @Test(expected = org.attribyte.api.InitializationException.class)
-   public void xmlInvalidUnits() throws Exception {
-
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection user=\"test\" password=\"pass\" testSQL=\"testsql\" connectionString=\"cs\">" +
-                      "<acquireTimeout time=\"5s\"/>" +
-                      "<activeTimeout time=\"5x\"/>" +
-                      "<lifetime time=\"1h\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"4s\"/>" +
-                      "<activeTimeoutMonitor frequency=\"45s\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment.Initializer.fromXML("pool0", elem, null).createSegment();
    }
 
    @Test(expected = org.attribyte.api.InitializationException.class)
    public void xmlInvalidActiveTimeout() throws Exception {
-
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection user=\"test\" password=\"pass\" testSQL=\"testsql\" connectionString=\"cs\">" +
-                      "<acquireTimeout time=\"5s\"/>" +
-                      "<activeTimeout time=\"-5s\"/>" +
-                      "<lifetime time=\"1h\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"4s\"/>" +
-                      "<activeTimeoutMonitor frequency=\"45s\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment.Initializer.fromXML("pool0", elem, null).createSegment();
    }
 
    @Test(expected = org.attribyte.api.InitializationException.class)
    public void xmlInvalidLifetime() throws Exception {
-
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection user=\"test\" password=\"pass\" testSQL=\"testsql\" connectionString=\"cs\">" +
-                      "<acquireTimeout time=\"5s\"/>" +
-                      "<activeTimeout time=\"5s\"/>" +
-                      "<lifetime time=\"-1h\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"4s\"/>" +
-                      "<activeTimeoutMonitor frequency=\"45s\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment.Initializer.fromXML("pool0", elem, null).createSegment();
    }
 
    @Test(expected = org.attribyte.api.InitializationException.class)
    public void xmlInvalidReconnectMaxWait() throws Exception {
-
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection user=\"test\" password=\"pass\" testSQL=\"testsql\" connectionString=\"cs\">" +
-                      "<acquireTimeout time=\"5s\"/>" +
-                      "<activeTimeout time=\"5s\"/>" +
-                      "<lifetime time=\"1h\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"-4s\"/>" +
-                      "<activeTimeoutMonitor frequency=\"45s\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment.Initializer.fromXML("pool0", elem, null).createSegment();
    }
 
    @Test(expected = org.attribyte.api.InitializationException.class)
    public void xmlInvalidActiveTimeoutMonitorFrequency() throws Exception {
-
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection user=\"test\" password=\"pass\" testSQL=\"testsql\" connectionString=\"cs\">" +
-                      "<acquireTimeout time=\"5s\"/>" +
-                      "<activeTimeout time=\"5s\"/>" +
-                      "<lifetime time=\"1h\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"-4s\"/>" +
-                      "<activeTimeoutMonitor frequency=\"-45s\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment.Initializer.fromXML("pool0", elem, null).createSegment();
    }
 
    @Test
@@ -261,38 +60,6 @@ public class ConnectionPoolSegmentConfigTest {
       JDBConnection conn = new JDBConnection("test123", "test", "pass", "cs", 4L, "testsql", 200L, false);
       Map<String, JDBConnection> connMap = new HashMap<String, JDBConnection>();
       connMap.put("test123", conn);
-
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection name=\"test123\">" +
-                      "<acquireTimeout time=\"5\" timeUnit=\"seconds\"/>" +
-                      "<activeTimeout time=\"5\" timeUnit=\"milliseconds\"/>" +
-                      "<lifetime time=\"1\" timeUnit=\"hours\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"4\" timeUnit=\"seconds\"/>" +
-                      "<activeTimeoutMonitor frequency=\"45\" timeUnit=\"seconds\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-      ConnectionPoolSegment segment = ConnectionPoolSegment.Initializer.fromXML("pool0", elem, connMap).createSegment();
-      assertNotNull(segment);
-      assertNotNull(segment.dbConnection);
-      assertEquals("test", segment.dbConnection.user);
-      assertEquals("pass", segment.dbConnection.password);
-      assertEquals("testsql", segment.dbConnection.testSQL);
-      assertEquals("cs", segment.dbConnection.connectionString);
-      assertEquals(2, segment.getCloserThreadCount());
-      assertEquals(3, segment.getMaxConcurrentReconnects());
-      assertEquals(4000, segment.maxReconnectDelayMillis);
-      assertEquals(5, segment.getMaxConnections());
-      assertTrue(segment.testOnLogicalOpen);
-      assertFalse(segment.testOnLogicalClose);
-      assertEquals(5000, segment.acquireTimeoutMillis);
-      assertEquals(5, segment.activeTimeoutMillis);
-      assertEquals(3600 * 1000, segment.connectionLifetimeMillis);
-      assertEquals("pool0:segment0", segment.name);
    }
 
    @Test
@@ -302,30 +69,9 @@ public class ConnectionPoolSegmentConfigTest {
       Map<String, JDBConnection> connMap = new HashMap<String, JDBConnection>();
       connMap.put("test123", conn);
 
-      String xml =
-              "<segment name=\"segment0\" size=\"5\" concurrency=\"2\" testOnLogicalOpen=\"true\" testOnLogicalClose=\"false\">" +
-                      "<connection name=\"test123\">" +
-                      "<acquireTimeout time=\"5\" timeUnit=\"seconds\"/>" +
-                      "<activeTimeout time=\"5\" timeUnit=\"milliseconds\"/>" +
-                      "<lifetime time=\"1\" timeUnit=\"hours\"/>" +
-                      "</connection>" +
-                      "<reconnect concurrency=\"3\" maxWaitTime=\"4\" timeUnit=\"seconds\"/>" +
-                      "<activeTimeoutMonitor frequency=\"45\" timeUnit=\"seconds\"/>" +
-                      "</segment>";
-
-      DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-      Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes("UTF-8")));
-      Element elem = doc.getDocumentElement();
-
-      ConnectionPoolSegment.Initializer segmentInit = ConnectionPoolSegment.Initializer.fromXML("pool0", elem, connMap);
       Properties props = new Properties();
       props.setProperty("test123", "pass");
-      segmentInit.setPasswordSource(new PropertiesPasswordSource(props));
-      ConnectionPoolSegment segment = segmentInit.createSegment();
-      assertNotNull(segment);
-      String password = segment.getPassword();
-      assertNotNull(password);
-      assertEquals("pass", password);
+      //segmentInit.setPasswordSource(new PropertiesPasswordSource(props));
    }
 
    @Test
@@ -339,7 +85,6 @@ public class ConnectionPoolSegmentConfigTest {
       connMap.put("conn2", conn2);
 
       Properties props = new Properties();
-      ConnectionPoolSegment.Initializer initializer = new ConnectionPoolSegment.Initializer();
       props.setProperty("name", "segment0");
       props.setProperty("connectionName", "conn1");
       props.setProperty("size", "5");
@@ -354,7 +99,15 @@ public class ConnectionPoolSegmentConfigTest {
       props.setProperty("reconnectConcurrency", "3");
       props.setProperty("reconnectMaxWaitTime", "1m");
       props.setProperty("activeTimeoutMonitorFrequency", "30s");
-      ConnectionPoolSegment.Initializer.fromProperties("localPool", initializer, props, connMap);
+      props.setProperty("incompleteTransactionPolicy", "report");
+      props.setProperty("openStatementPolicy", "silent");
+      props.setProperty("forceRealClosePolicy", "connectionWithLimit");
+      props.setProperty("closeTimeLimit", "10 seconds");
+
+      Config config = ConfigFactory.parseProperties((props));
+      ConnectionPoolSegment.Initializer initializer = new ConnectionPoolSegment.Initializer();
+      TypesafeConfig.segmentFromConfig("localPool", "segment0", config, initializer, connMap);
+
       ConnectionPoolSegment segment = initializer.createSegment();
 
       assertNotNull(segment);
@@ -375,6 +128,6 @@ public class ConnectionPoolSegmentConfigTest {
       assertEquals(15L * 60L * 1000, segment.connectionLifetimeMillis);
       assertEquals(30000L, segment.idleTimeBeforeShutdownMillis);
       assertEquals(30L, segment.getActiveTimeoutMonitorFrequencySeconds());
-      assertEquals("localPool:segment0", segment.name);
+      assertEquals("localPool.segment0", segment.name);
    }
 }
