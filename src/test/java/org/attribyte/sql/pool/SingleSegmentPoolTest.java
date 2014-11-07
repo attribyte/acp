@@ -15,18 +15,18 @@
 
 package org.attribyte.sql.pool;
 
+import org.attribyte.api.ConsoleLogger;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.*;
-
 import static org.junit.Assert.*;
-
-import java.util.List;
-import java.util.ArrayList;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutorService;
-
-import org.attribyte.api.ConsoleLogger;
 
 /**
  * Pool tests.
