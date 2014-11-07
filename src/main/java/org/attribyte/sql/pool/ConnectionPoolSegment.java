@@ -15,35 +15,30 @@
 
 package org.attribyte.sql.pool;
 
+import com.codahale.metrics.*;
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SimpleTimeLimiter;
+import com.google.common.util.concurrent.UncheckedTimeoutException;
+import org.attribyte.api.ConsoleLogger;
+import org.attribyte.api.InitializationException;
+import org.attribyte.api.Logger;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-
-import org.w3c.dom.Element;
-import org.attribyte.api.InitializationException;
-import org.attribyte.api.ConsoleLogger;
-import org.attribyte.api.Logger;
-import org.attribyte.util.DOMUtil;
-import org.attribyte.util.StringUtil;
-
-import com.google.common.util.concurrent.SimpleTimeLimiter;
-import com.google.common.util.concurrent.UncheckedTimeoutException;
+import java.util.concurrent.*;
 
 
 /**
  * A collection of connections that are managed as a single unit as part of a
  * pool.
  * <p>
- * A segment contains a fixed number of physical database connections in one of the following states: available, open,
- * closing, reopening, or disconnected.
+ *    A segment contains a fixed number of physical database connections in one of the following states: available, open,
+ *    closing, reopening, or disconnected.
  * </p>
  * @author Matt Hamer - Attribyte, LLC
  */
@@ -52,32 +47,25 @@ public class ConnectionPoolSegment {
    /**
     * Statistics for this segment.
     */
-   public class Stats {
+   public class Stats implements MetricSet {
 
       private Stats() {
+         this.metrics =
+                 ImmutableMap.<String, Metric>builder()
+                         .put("connections", connections)
+                         .put("connection-errors", connectionErrors)
+                         .put("active-timeout", activeTimeoutCount)
+                         .put("uptime-active-fraction", uptimeActiveFraction)
+                         .put("active", activeGauge)
+                         .build();
       }
 
-      /**
-       * Gets a snapshot of the current stats.
-       * @return The stats.
-       */
-      public Stats getSnapshot() {
-         return new Stats(this);
+      @Override
+      public Map<String, Metric> getMetrics() {
+         return metrics;
       }
 
-      /**
-       * Creates a copy.
-       * @param other The stats to copy.
-       */
-      private Stats(Stats other) {
-         connectionCount.set(other.connectionCount.get());
-         connectionErrorCount.set(other.connectionErrorCount.get());
-         activeTimeoutCount.set(other.activeTimeoutCount.get());
-         lastActivatedTime = other.lastActivatedTime;
-         cumulativeActiveTimeMillis = other.cumulativeActiveTimeMillis;
-         lastDeactivateTime = other.lastDeactivateTime;
-         active = other.active;
-      }
+      private final Map<String, Metric> metrics;
 
       /**
        * Gets the name of the segment.
@@ -92,39 +80,39 @@ public class ConnectionPoolSegment {
        * @return The connection count.
        */
       public long getConnectionCount() {
-         return connectionCount.get();
+         return connections.getCount();
       }
 
       /**
        * Total number of connections served since startup.
        */
-      private final AtomicLong connectionCount = new AtomicLong(0);
+      private final Meter connections = new Meter();
 
       /**
        * Gets the count of failed connection errors.
        * @return The connection error count.
        */
       public long getFailedConnectionErrorCount() {
-         return connectionErrorCount.get();
+         return connectionErrors.getCount();
       }
 
       /**
        * Total number of errors raised while creating connections.
        */
-      private final AtomicLong connectionErrorCount = new AtomicLong(0);
+      private final Meter connectionErrors = new Meter();
 
       /**
        * Gets the count of connections closed when active limit is reached.
        * @return The active timeout count.
        */
       public long getActiveTimeoutCount() {
-         return activeTimeoutCount.get();
+         return activeTimeoutCount.getCount();
       }
 
       /**
        * Total number of connections closed automatically when active too long.
        */
-      private final AtomicLong activeTimeoutCount = new AtomicLong(0);
+      private final Counter activeTimeoutCount = new Counter();
 
       /**
        * Gets the time this segment was last activated.
@@ -174,9 +162,30 @@ public class ConnectionPoolSegment {
       }
 
       /**
-       * Is the pool currently active?
+       * A gauge that reports if the segment is active (1) or
+       * inactive (0).
+       */
+      private final Gauge<Integer> activeGauge = new Gauge<Integer>() {
+         @Override
+         public Integer getValue() {
+            return active ? 1 : 0;
+         }
+      };
+
+      /**
+       * Is the segment currently active?
        */
       private volatile boolean active = false;
+
+      /**
+       * A gauge for the fraction of total uptime this segment has been active.
+       */
+      private final Gauge<Double> uptimeActiveFraction = new Gauge<Double>() {
+         @Override
+         public Double getValue() {
+            return getUptimeActiveFraction();
+         }
+      };
 
       /**
        * Gets the fraction of the total uptime this segment has been active.
@@ -190,41 +199,6 @@ public class ConnectionPoolSegment {
             long totalTimeMillis = System.currentTimeMillis() - createTime;
             return (double)cumulativeActiveTimeMillis / (double)totalTimeMillis;
          }
-      }
-
-      /**
-       * Gets the transactions (number of connections opened) per second when the segment is active.
-       * @return The transactions per second.
-       */
-      public final double getActiveTPS() {
-
-         long totalTimeSeconds = 0L;
-         if(active && cumulativeActiveTimeMillis == 0) { //Active and never deactivated.
-            totalTimeSeconds = (System.currentTimeMillis() - createTime) / 1000L;
-         } else if(cumulativeActiveTimeMillis > 0) {
-            totalTimeSeconds = cumulativeActiveTimeMillis / 1000L;
-         }
-
-         if(totalTimeSeconds == 0L) {
-            totalTimeSeconds = 1L;
-         }
-
-         return (double)connectionCount.get() / (double)totalTimeSeconds;
-      }
-
-      /**
-       * Gets the transactions (number of connections opened) per second since the pool was opened.
-       * <p>
-       * Includes time that segment is disabled.
-       * </p>
-       * @return The transactions per second.
-       */
-      public final double getAverageTPS() {
-         long totalTimeSeconds = (System.currentTimeMillis() - createTime) / 1000L;
-         if(totalTimeSeconds == 0L) {
-            totalTimeSeconds = 1L;
-         }
-         return (double)connectionCount.get() / (double)totalTimeSeconds;
       }
 
       /**
@@ -253,8 +227,8 @@ public class ConnectionPoolSegment {
    public static class Initializer {
 
       /**
-       * Sets the name of the pool.
-       * @param name The pool name.
+       * Sets the name of the segment.
+       * @param name The segment name.
        * @return A self-reference.
        */
       public Initializer setName(final String name) {
@@ -338,12 +312,21 @@ public class ConnectionPoolSegment {
       }
 
       /**
+       * Does this initializer have a connection set?
+       * @return Is the conneciton set?
+       */
+      public boolean hasConnection() {
+         return this.jdbcConnection != null;
+      }
+
+
+      /**
        * Sets the number of threads handling connection close.
        * Default is <tt>0</tt>.
        * <p>
-       * If concurrency is <tt>0</tt> (logical) close operations will be performed (and block)
-       * in the calling thread. Higher concurrency allows close to return immediately
-       * after queuing the connection, with this number of threads monitoring the queue.
+       *   If concurrency is <tt>0</tt> (logical) close operations will be performed (and block)
+       *   in the calling thread. Higher concurrency allows close to return immediately
+       *   after queuing the connection, with this number of threads monitoring the queue.
        * </p>
        * @param closerConcurrency The number of threads.
        * @return A self-reference.
@@ -375,7 +358,7 @@ public class ConnectionPoolSegment {
       }
 
       /**
-       * Sets segment to test connections when they are logically opened.
+       * Sets thr option to test connections when they are logically opened.
        * @param testOnLogicalOpen Should connections be tested on logical open?.
        * @return A self-reference.
        */
@@ -385,7 +368,7 @@ public class ConnectionPoolSegment {
       }
 
       /**
-       * Sets segment to test connections when they are logically closed.
+       * Sets the option to test connections when they are logically closed.
        * @param testOnLogicalClose Should connections be tested on logical close?.
        * @return A self-reference.
        */
@@ -427,6 +410,47 @@ public class ConnectionPoolSegment {
       }
 
       /**
+       * Sets the incomplete transaction (on close) policy.
+       * @param incompleteTransactionPolicy The policy.
+       * @return A self-reference.
+       */
+      public Initializer setIncompleteTransactionOnClosePolicy(final ConnectionPoolConnection.IncompleteTransactionPolicy incompleteTransactionPolicy) {
+         this.incompleteTransactionPolicy = incompleteTransactionPolicy;
+         return this;
+      }
+
+      /**
+       * Sets the open statement (on close) policy.
+       * @param openStatementPolicy The policy.
+       * @return A self-reference.
+       */
+      public Initializer setOpenStatementOnClosePolicy(final ConnectionPoolConnection.OpenStatementPolicy openStatementPolicy) {
+         this.openStatementPolicy = openStatementPolicy;
+         return this;
+      }
+
+      /**
+       * Sets the policy followed by the pool when a "forced" close is trigger (for example,
+       * connection is in-use longer than the configured maximum lease time).
+       * @param forceRealClosePolicy The policy.
+       * @return A self-reference.
+       */
+      public Initializer setForceRealClosePolicy(final ConnectionPoolConnection.ForceRealClosePolicy forceRealClosePolicy) {
+         this.forceRealClosePolicy = forceRealClosePolicy;
+         return this;
+      }
+
+      /**
+       * Sets the maximum amount of time connection close will block.
+       * @param closeTimeLimitMillis The time.
+       * @return A self-reference.
+       */
+      public Initializer setCloseTimeLimitMillis(final long closeTimeLimitMillis) {
+         this.closeTimeLimitMillis = closeTimeLimitMillis;
+         return this;
+      }
+
+      /**
        * Creates a segment after configuration.
        * @return The segment.
        * @throws InitializationException if configuration is invalid.
@@ -451,301 +475,13 @@ public class ConnectionPoolSegment {
       }
 
       /**
-       * Creates an initializer from XML configuration.
-       * @param poolName The pool name.
-       * @param elem The DOM element.
-       * @param connectionMap A map of connection vs. name.
-       * @return The initializer.
-       * @throws InitializationException if configuration is invalid.
-       */
-      public static final Initializer fromXML(String poolName, Element elem, Map<String, JDBConnection> connectionMap) throws InitializationException {
-         Initializer initializer = new Initializer();
-         return fromXML(poolName, initializer, elem, connectionMap);
-      }
-
-      /**
-       * Sets initializer properties from XML configuration.
-       * @param poolName The pool name.
-       * @param initializer An initializer.
-       * @param elem The DOM element.
-       * @param connectionMap A map of connection vs. name.
-       * @return The initializer.
-       * @throws InitializationException if configuration is invalid.
-       */
-      public static final Initializer fromXML(String poolName, Initializer initializer, Element elem, Map<String, JDBConnection> connectionMap) throws InitializationException {
-
-         initializer.name = elem.getAttribute("name");
-         if(poolName != null) {
-            initializer.name = poolName + ":" + initializer.name;
-         }
-
-         String size = elem.getAttribute("size");
-         if(size.length() > 0) {
-            initializer.size = Integer.parseInt(size);
-         }
-
-         String numClosers = elem.getAttribute("concurrency");
-         if(numClosers.length() > 0) {
-            initializer.numCloserThreads = Integer.parseInt(numClosers);
-         }
-
-         String testOnLogicalOpen = elem.getAttribute("testOnLogicalOpen");
-         if(testOnLogicalOpen.length() > 0) {
-            initializer.testOnLogicalOpen = testOnLogicalOpen.equalsIgnoreCase("true");
-         }
-
-         String testOnLogicalClose = elem.getAttribute("testOnLogicalClose");
-         if(testOnLogicalClose.length() > 0) {
-            initializer.testOnLogicalClose = testOnLogicalClose.equalsIgnoreCase("true");
-         }
-
-         String incompleteTransactionPolicy = elem.getAttribute("incompleteTransactionPolicy");
-         initializer.incompleteTransactionPolicy =
-                 ConnectionPoolConnection.IncompleteTransactionPolicy.fromString(incompleteTransactionPolicy, ConnectionPoolConnection.IncompleteTransactionPolicy.REPORT);
-
-         String openStatementPolicy = elem.getAttribute("openStatementPolicy");
-         initializer.openStatementPolicy = ConnectionPoolConnection.OpenStatementPolicy.fromString(openStatementPolicy, ConnectionPoolConnection.OpenStatementPolicy.SILENT);
-
-         String forceRealClosePolicy = elem.getAttribute("forceRealClosePolicy");
-         initializer.forceRealClosePolicy = ConnectionPoolConnection.ForceRealClosePolicy.fromString(forceRealClosePolicy, ConnectionPoolConnection.ForceRealClosePolicy.CONNECTION);
-         String closeTimeLimitMillis = elem.getAttribute("closeTimeLimitMillis");
-         if(StringUtil.hasContent(closeTimeLimitMillis)) {
-            initializer.closeTimeLimitMillis = Long.parseLong(closeTimeLimitMillis);
-         }
-
-         Element connectionElem = DOMUtil.getFirstChild(elem, "connection");
-         if(connectionElem != null) {
-            String connectionName = connectionElem.getAttribute("name");
-            if(connectionName.length() == 0) {
-               initializer.jdbcConnection = new JDBConnection(connectionElem);
-            } else if(connectionMap != null) {
-               JDBConnection connection = connectionMap.get(connectionName);
-               if(connection != null) {
-                  initializer.jdbcConnection = connection;
-               } else {
-                  throw new InitializationException("No connection defined with name '" + connectionName + "'");
-               }
-            } else {
-               throw new InitializationException("No connection defined with name '" + connectionName + "'");
-            }
-
-            long acquireTimeoutMillis = Util.millisFromElem(connectionElem, "acquireTimeout", Long.MIN_VALUE);
-            if(acquireTimeoutMillis != Long.MIN_VALUE) {
-               initializer.acquireTimeoutMillis = acquireTimeoutMillis;
-            }
-
-            long activeTimeoutMillis = Util.millisFromElem(connectionElem, "activeTimeout", Long.MIN_VALUE);
-            if(activeTimeoutMillis != Long.MIN_VALUE) {
-               initializer.activeTimeoutMillis = activeTimeoutMillis;
-               if(initializer.activeTimeoutMillis < 1L) {
-                  throw new InitializationException("The 'time' for 'activeTimeout' must be > 0");
-               }
-            }
-
-            long connectionLifetimeMillis = Util.millisFromElem(connectionElem, "lifetime", Long.MIN_VALUE);
-            if(connectionLifetimeMillis != Long.MIN_VALUE) {
-               initializer.connectionLifetimeMillis = connectionLifetimeMillis;
-               if(initializer.connectionLifetimeMillis < 1L) {
-                  throw new InitializationException("The 'time' for 'lifetime' must be > 0");
-               }
-            }
-
-         } else { //Allow overrides without connection element.
-
-            long acquireTimeoutMillis = Util.millisFromElem(elem, "acquireTimeout", Long.MIN_VALUE);
-            if(acquireTimeoutMillis != Long.MIN_VALUE) {
-               initializer.acquireTimeoutMillis = acquireTimeoutMillis;
-            }
-
-            long activeTimeoutMillis = Util.millisFromElem(elem, "activeTimeout", Long.MIN_VALUE);
-            if(activeTimeoutMillis != Long.MIN_VALUE) {
-               initializer.activeTimeoutMillis = activeTimeoutMillis;
-               if(initializer.activeTimeoutMillis < 1L) {
-                  throw new InitializationException("The 'time' for 'activeTimeout' must be > 0");
-               }
-            }
-
-            long connectionLifetimeMillis = Util.millisFromElem(elem, "lifetime", Long.MIN_VALUE);
-            if(connectionLifetimeMillis != Long.MIN_VALUE) {
-               initializer.connectionLifetimeMillis = connectionLifetimeMillis;
-               if(initializer.connectionLifetimeMillis < 1L) {
-                  throw new InitializationException("The 'time' for 'lifetime' must be > 0");
-               }
-            }
-         }
-
-         Element reconnectElem = DOMUtil.getFirstChild(elem, "reconnect");
-         if(reconnectElem != null) {
-
-            String maxConcurrentReconnects = reconnectElem.getAttribute("concurrency");
-            if(maxConcurrentReconnects.length() > 0) {
-               initializer.maxConcurrentReconnects = Integer.parseInt(maxConcurrentReconnects);
-            }
-
-            if(initializer.maxConcurrentReconnects < 1) {
-               throw new InitializationException("The 'concurrency' for 'reconnect' must be > 0");
-            }
-
-            initializer.maxReconnectDelayMillis = Util.millisFromElem(elem, "maxWaitTime", "reconnect", 0L);
-            if(initializer.maxReconnectDelayMillis < 1L) {
-               throw new InitializationException("The 'time' for 'reconnect' must be > 0");
-            }
-         }
-
-         long activeTimeoutMonitorFrequencyMillis = Util.millisFromElem(elem, "frequency", "activeTimeoutMonitor", Long.MIN_VALUE);
-         if(activeTimeoutMonitorFrequencyMillis != Long.MIN_VALUE) {
-            initializer.activeTimeoutMonitorFrequencySeconds = activeTimeoutMonitorFrequencyMillis / 1000L;
-            if(initializer.activeTimeoutMonitorFrequencySeconds < 1L) {
-               throw new InitializationException("The 'frequency' for 'activeTimeoutMonitor' must be > 0");
-            }
-         }
-
-         return initializer;
-      }
-
-      /**
-       * Sets initializer properties from properties.
-       * @param poolName The pool name.
-       * @param initializer An initializer.
-       * @param props The properties.
-       * @param connectionMap A map of connection vs. name.
-       * @return The initializer.
-       * @throws InitializationException if configuration is invalid.
-       */
-      public static final Initializer fromProperties(String poolName, Initializer initializer,
-                                                     Properties props, Map<String, JDBConnection> connectionMap) throws InitializationException {
-
-         initializer.name = props.getProperty("name");
-
-         if(!StringUtil.hasContent(initializer.name)) {
-            throw new InitializationException("Segments must have a 'name'");
-         }
-
-         if(poolName != null) {
-            initializer.name = poolName + ":" + initializer.name;
-         }
-
-         String size = props.getProperty("size", "").trim();
-         if(size.length() > 0) {
-            initializer.size = Integer.parseInt(size);
-         }
-
-         String numClosers = props.getProperty("closeConcurrency", "").trim();
-         if(numClosers.length() > 0) {
-            initializer.numCloserThreads = Integer.parseInt(numClosers);
-         }
-
-         String testOnLogicalOpen = props.getProperty("testOnLogicalOpen", "").trim();
-         if(testOnLogicalOpen.length() > 0) {
-            initializer.testOnLogicalOpen = testOnLogicalOpen.equalsIgnoreCase("true");
-         }
-
-         String testOnLogicalClose = props.getProperty("testOnLogicalClose", "").trim();
-         if(testOnLogicalClose.length() > 0) {
-            initializer.testOnLogicalClose = testOnLogicalClose.equalsIgnoreCase("true");
-         }
-
-         String incompleteTransactionPolicy = props.getProperty("incompleteTransactionPolicy");
-         initializer.incompleteTransactionPolicy =
-                 ConnectionPoolConnection.IncompleteTransactionPolicy.fromString(incompleteTransactionPolicy, ConnectionPoolConnection.IncompleteTransactionPolicy.REPORT);
-
-         String openStatementPolicy = props.getProperty("openStatementPolicy");
-         initializer.openStatementPolicy = ConnectionPoolConnection.OpenStatementPolicy.fromString(openStatementPolicy, ConnectionPoolConnection.OpenStatementPolicy.SILENT);
-
-         String forceRealClosePolicy = props.getProperty("forceRealClosePolicy");
-         initializer.forceRealClosePolicy = ConnectionPoolConnection.ForceRealClosePolicy.fromString(forceRealClosePolicy, ConnectionPoolConnection.ForceRealClosePolicy.CONNECTION);
-         initializer.closeTimeLimitMillis = Long.parseLong(props.getProperty("closeTimeLimitMillis", "5000"));
-
-         String connectionName = props.getProperty("connectionName", "").trim();
-         JDBConnection conn = null;
-         if(connectionName.length() > 0) {
-            conn = connectionMap.get(connectionName);
-            if(conn == null) {
-               throw new InitializationException("No connection defined with name '" + connectionName + "'");
-            }
-         }
-
-         if(conn == null && initializer.jdbcConnection == null) {
-            throw new InitializationException("A 'connectionName' must be specified for segment, '" + initializer.name + "'");
-         } else if(conn != null) {
-            initializer.jdbcConnection = conn;
-         }
-
-         long acquireTimeoutMillis = Util.millis(props.getProperty("acquireTimeout"), Long.MIN_VALUE);
-
-         if(acquireTimeoutMillis != Long.MIN_VALUE) {
-            initializer.acquireTimeoutMillis = acquireTimeoutMillis;
-         }
-
-         long activeTimeoutMillis = Util.millis(props.getProperty("activeTimeout"), Long.MIN_VALUE);
-         if(activeTimeoutMillis != Long.MIN_VALUE) {
-            initializer.activeTimeoutMillis = activeTimeoutMillis;
-            if(initializer.activeTimeoutMillis < 1L) {
-               throw new InitializationException("The 'activeTimeout' must be > 0");
-            }
-         }
-
-         long connectionLifetimeMillis = Util.millis(props.getProperty("connectionLifetime"), Long.MIN_VALUE);
-         if(connectionLifetimeMillis != Long.MIN_VALUE) {
-            initializer.connectionLifetimeMillis = connectionLifetimeMillis;
-            if(initializer.connectionLifetimeMillis < 1L) {
-               throw new InitializationException("The 'connectionLifetime' must be > 0");
-            }
-         }
-
-         long idleTimeBeforeShutdownMillis = Util.millis(props.getProperty("idleTimeBeforeShutdown"), Long.MIN_VALUE);
-         if(idleTimeBeforeShutdownMillis != Long.MIN_VALUE) {
-            initializer.idleTimeBeforeShutdownMillis = idleTimeBeforeShutdownMillis;
-            if(initializer.idleTimeBeforeShutdownMillis < 1L) {
-               throw new InitializationException("The 'idleTimeBeforeShutdown' must be > 0");
-            }
-         }
-
-         long minActiveTimeMillis = Util.millis(props.getProperty("minActiveTime"), Long.MIN_VALUE);
-         if(minActiveTimeMillis != Long.MIN_VALUE) {
-            initializer.minActiveTimeMillis = minActiveTimeMillis;
-            if(initializer.minActiveTimeMillis < 1L) {
-               throw new InitializationException("The 'minActiveTime' must be > 0");
-            }
-         }
-
-         String maxConcurrentReconnects = props.getProperty("reconnectConcurrency", "").trim();
-         if(maxConcurrentReconnects.length() > 0) {
-            initializer.maxConcurrentReconnects = Integer.parseInt(maxConcurrentReconnects);
-         }
-
-         if(initializer.maxConcurrentReconnects < 1) {
-            throw new InitializationException("The 'reconnectConcurrency' must be > 0");
-         }
-
-         if(props.getProperty("reconnectMaxWaitTime", "").trim().length() > 0) {
-            initializer.maxReconnectDelayMillis = Util.millis(props.getProperty("reconnectMaxWaitTime"), 0L);
-         }
-
-         if(initializer.maxReconnectDelayMillis < 1L) {
-            throw new InitializationException("The 'reconnectMaxWaitTime' must be > 0");
-         }
-
-         long activeTimeoutMonitorFrequencyMillis = Util.millis(props.getProperty("activeTimeoutMonitorFrequency"), Long.MIN_VALUE);
-         if(activeTimeoutMonitorFrequencyMillis != Long.MIN_VALUE) {
-            initializer.activeTimeoutMonitorFrequencySeconds = activeTimeoutMonitorFrequencyMillis / 1000L;
-         }
-
-         if(initializer.activeTimeoutMonitorFrequencySeconds < 1L) {
-            throw new InitializationException("The 'activeTimeoutMonitorFrequency' must be > 0");
-         }
-
-         return initializer;
-      }
-
-      /**
        * Verify that all required initialization variables are set.
        * @param withDefaults If <tt>true</tt> defaults will be supplied if possible.
        * @throws InitializationException If initialization is invalid.
        */
       public void validate(final boolean withDefaults) throws InitializationException {
 
-         if(!StringUtil.hasContent(name)) {
+         if(Strings.isNullOrEmpty(name)) {
             throw new InitializationException("A 'name' is required");
          }
 
@@ -783,7 +519,7 @@ public class ConnectionPoolSegment {
       /**
        * Creates an initializer from another.
        * <p>
-       * Does not copy the name segment name.
+       *   Does not copy the name segment name.
        * </p>
        * @param other The other initializer.
        */
@@ -825,9 +561,12 @@ public class ConnectionPoolSegment {
       private boolean testOnLogicalOpen = false;
       private boolean testOnLogicalClose = false;
       private PasswordSource passwordSource = null;
-      private ConnectionPoolConnection.IncompleteTransactionPolicy incompleteTransactionPolicy = ConnectionPoolConnection.IncompleteTransactionPolicy.REPORT;
-      private ConnectionPoolConnection.OpenStatementPolicy openStatementPolicy = ConnectionPoolConnection.OpenStatementPolicy.SILENT;
-      private ConnectionPoolConnection.ForceRealClosePolicy forceRealClosePolicy = ConnectionPoolConnection.ForceRealClosePolicy.CONNECTION;
+      private ConnectionPoolConnection.IncompleteTransactionPolicy incompleteTransactionPolicy =
+              ConnectionPoolConnection.IncompleteTransactionPolicy.REPORT;
+      private ConnectionPoolConnection.OpenStatementPolicy openStatementPolicy =
+              ConnectionPoolConnection.OpenStatementPolicy.SILENT;
+      private ConnectionPoolConnection.ForceRealClosePolicy forceRealClosePolicy =
+              ConnectionPoolConnection.ForceRealClosePolicy.CONNECTION;
       private long closeTimeLimitMillis = 5000L;
    }
 
@@ -844,7 +583,7 @@ public class ConnectionPoolSegment {
       final void close(final ConnectionPoolConnection conn) {
 
          if(conn.state.compareAndSet(ConnectionPoolConnection.STATE_OPEN, ConnectionPoolConnection.STATE_CLOSING)) { //Active timeout monitor may check concurrently
-            stats.connectionCount.incrementAndGet();
+            stats.connections.mark();
             try {
                long currTimeMillis = Clock.currTimeMillis;
                if((currTimeMillis - conn.realOpenTime) > connectionLifetimeMillis) {
@@ -866,14 +605,14 @@ public class ConnectionPoolSegment {
             } catch(SQLException se) { //Refresh failed - queue for a reopen.
                conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
                conn.logicalCloseException = null;
-               stats.connectionErrorCount.incrementAndGet();
+               stats.connectionErrors.mark();
                logError("Connection test failed for " + conn.id, se);
                reopen(conn);
             } catch(Throwable t) {
                logErrorWithTrace("Unexpected exception during close", t); //Queue for a reopen.
                conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
                conn.logicalCloseException = null;
-               stats.connectionErrorCount.incrementAndGet();
+               stats.connectionErrors.mark();
                reopen(conn);
             }
          }
@@ -895,8 +634,8 @@ public class ConnectionPoolSegment {
    /**
     * Reopens a connection.
     * <p>
-    * Closes the real connection and attempts to reopen it.
-    * If successful, returns the connection to the available queue.
+    *    Closes the real connection and attempts to reopen it.
+    *    If successful, returns the connection to the available queue.
     * </p>
     */
    private final class Reopener implements Runnable {
@@ -922,7 +661,7 @@ public class ConnectionPoolSegment {
                      availableQueue.add(conn);
                      logDebug("Reopening " + conn.id);
                   } catch(SQLException se) {
-                     stats.connectionErrorCount.incrementAndGet();
+                     stats.connectionErrors.mark();
                      conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
                      logError("Failed to reopen " + conn.id + " (" + conn.reopenAttempts + (conn.reopenAttempts == 1 ? " try)" : " tries)"), se);
                      reopen(conn);
@@ -977,8 +716,8 @@ public class ConnectionPoolSegment {
                               conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
                               conn.logicalCloseException = null;
                               reopen(conn);
-                           }
                         }
+                     }
                         break;
                      }
                      case ConnectionPoolConnection.STATE_OPEN:
@@ -993,11 +732,11 @@ public class ConnectionPoolSegment {
                                  logError("Open connection, '" + conn.id + "' inactive for " + elapsedTimeMillis + " ms. Trace: " + conn.getTrace());
                               } else {
                                  logError("Open connection, '" + conn.id + "' inactive for " + elapsedTimeMillis + " ms.");
-                              }
-                              stats.activeTimeoutCount.incrementAndGet();
+                           }
+                              stats.activeTimeoutCount.inc();
                               conn.logicalCloseException = null;
                               reopen(conn);
-                           }
+                        }
                         }
 
                         break;
@@ -1080,13 +819,15 @@ public class ConnectionPoolSegment {
          this.connections[i] = conn;
       }
 
-      availableQueue = new ArrayBlockingQueue<ConnectionPoolConnection>(size, false, connections);
+      //availableQueue = new ArrayBlockingQueue<ConnectionPoolConnection>(size, false, connections);
+      availableQueue = new LinkedTransferQueue<ConnectionPoolConnection>();
+
 
       if(numCloserThreads > 0) {
 
-         String closerThreadNameBase = StringUtil.hasContent(name) ? ("ACP:" + name + ":") : "ACP:";
+         String closerThreadNameBase = !Strings.isNullOrEmpty(name) ? ("ACP:" + name + ":") : "ACP:";
 
-         closeQueue = new ArrayBlockingQueue<ConnectionPoolConnection>(size);
+         closeQueue = new LinkedTransferQueue<ConnectionPoolConnection>();
          closerThreads = new Thread[numCloserThreads];
          for(int i = 0; i < closerThreads.length; i++) {
             closerThreads[i] = new Thread(new Closer(), closerThreadNameBase + "Closer-" + i);
@@ -1101,10 +842,11 @@ public class ConnectionPoolSegment {
 
       this.activeTimeoutMonitorFrequencySeconds = activeTimeoutMonitorFrequencySeconds;
 
-      reopenService = new ScheduledThreadPoolExecutor(maxConcurrentReconnects == 0 ? 1 : maxConcurrentReconnects,
+      reopenExecutor = new ScheduledThreadPoolExecutor(maxConcurrentReconnects == 0 ? 1 : maxConcurrentReconnects,
               Util.createThreadFactoryBuilder(name, "Reopener"));
-      reopenService.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-      reopenService.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+      reopenExecutor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+      reopenExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+      reopenService = MoreExecutors.getExitingScheduledExecutorService(reopenExecutor);
 
       this.maxReconnectDelayMillis = maxReconnectDelayMillis;
       this.passwordSource = passwordSource;
@@ -1117,7 +859,7 @@ public class ConnectionPoolSegment {
     * Starts the active (too long) timeout monitor.
     * @param inactiveMonitorService The service.
     */
-   final void startActiveTimeoutMonitor(final ScheduledThreadPoolExecutor inactiveMonitorService) {
+   final void startActiveTimeoutMonitor(final ScheduledExecutorService inactiveMonitorService) {
       inactiveMonitorService.scheduleWithFixedDelay(new ActiveTimeoutMonitor(),
               activeTimeoutMonitorFrequencySeconds, activeTimeoutMonitorFrequencySeconds, TimeUnit.SECONDS);
    }
@@ -1137,9 +879,9 @@ public class ConnectionPoolSegment {
    /**
     * Opens a connection by obtaining one from the available queue.
     * <p>
-    * If no connection becomes available before the specified wait time,
-    * <tt>null</tt> is returned. If specified wait time < 0, waits indefinitely
-    * for a connection to become available.
+    *   If no connection becomes available before the specified wait time,
+    *   <tt>null</tt> is returned. If specified wait time < 0, waits indefinitely
+    *   for a connection to become available.
     * </p>
     * @param timeout The timeout value.
     * @param timeoutUnit The timeout units.
@@ -1160,7 +902,7 @@ public class ConnectionPoolSegment {
                conn.state.set(ConnectionPoolConnection.STATE_OPEN);
             } catch(SQLException se) {
                conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
-               stats.connectionErrorCount.incrementAndGet();
+               stats.connectionErrors.mark();
                reopen(conn);
                return open(); //Attempt to open another connection.
             }
@@ -1174,7 +916,7 @@ public class ConnectionPoolSegment {
    /**
     * Opens a connection by obtaining one from the available queue.
     * <p>
-    * If no connection is immediately, <tt>null</tt> is returned.
+    *   If no connection is immediately, <tt>null</tt> is returned.
     * </p>
     * @return A connection or <tt>null</tt> if none was immediately available.
     */
@@ -1190,7 +932,7 @@ public class ConnectionPoolSegment {
                conn.state.set(ConnectionPoolConnection.STATE_OPEN);
             } catch(SQLException se) {
                conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
-               stats.connectionErrorCount.incrementAndGet();
+               stats.connectionErrors.mark();
                reopen(conn);
                return open(); //Attempt to open another connection
             }
@@ -1262,12 +1004,12 @@ public class ConnectionPoolSegment {
    /**
     * Connections waiting to be closed and returned to the available queue.
     */
-   private final ArrayBlockingQueue<ConnectionPoolConnection> closeQueue;
+   private final BlockingQueue<ConnectionPoolConnection> closeQueue;
 
    /**
     * Available connections.
     */
-   private final ArrayBlockingQueue<ConnectionPoolConnection> availableQueue;
+   private final BlockingQueue<ConnectionPoolConnection> availableQueue;
 
    /**
     * Threads in which <tt>Closers</tt> run.
@@ -1275,7 +1017,7 @@ public class ConnectionPoolSegment {
    private final Thread[] closerThreads;
 
    /**
-    * Use to close logical connections when closer concurrency is zero.
+    * Closes logical connections when closer concurrency is zero.
     */
    private final Closer closer;
 
@@ -1287,7 +1029,8 @@ public class ConnectionPoolSegment {
    /**
     * Service for connection reopen.
     */
-   private final ScheduledThreadPoolExecutor reopenService;
+   private final ScheduledThreadPoolExecutor reopenExecutor;
+   private final ScheduledExecutorService reopenService;
 
    /**
     * A source for connection passwords.
@@ -1340,7 +1083,7 @@ public class ConnectionPoolSegment {
     * @return The maximum number of reconnects.
     */
    final int getMaxConcurrentReconnects() {
-      return reopenService.getCorePoolSize();
+      return reopenExecutor.getCorePoolSize();
    }
 
    /**
@@ -1361,11 +1104,11 @@ public class ConnectionPoolSegment {
          return dbConnection.password;
       } else {
          String usePassword = passwordSource.getPassword(dbConnection.name);
-         if(StringUtil.hasContent(usePassword)) {
+         if(!Strings.isNullOrEmpty(usePassword)) {
             return usePassword;
          } else {
             usePassword = passwordSource.getPassword(dbConnection.connectionString, dbConnection.user);
-            return StringUtil.hasContent(usePassword) ? usePassword : dbConnection.password;
+            return !Strings.isNullOrEmpty(usePassword) ? usePassword : dbConnection.password;
          }
       }
    }
@@ -1427,7 +1170,7 @@ public class ConnectionPoolSegment {
       }
 
       availableQueue.clear();
-      reopenService.getQueue().clear();
+      reopenExecutor.getQueue().clear();
 
       ArrayList<ConnectionPoolConnection> connections = new ArrayList<ConnectionPoolConnection>(this.connections.length);
       for(ConnectionPoolConnection connection : this.connections) {
@@ -1456,8 +1199,8 @@ public class ConnectionPoolSegment {
    /**
     * Deactivates the pool.
     * <p>
-    * As connections are returned to the pool, the real
-    * database connections will be closed.
+    *   As connections are returned to the pool, the real
+    *   database connections will be closed.
     * </p>
     * @return Were all connections deactivated?
     * @throws InterruptedException if interrupted.
@@ -1469,8 +1212,8 @@ public class ConnectionPoolSegment {
 
       availableQueue.clear(); //No more open connections...
 
-      reopenService.getQueue().clear(); //Clear all active reopeners - don't care...
-
+      reopenExecutor.getQueue().clear(); //Clear all active reopeners - don't care...
+      
       //Wait for all open connections to be closed & connections in the process of closing to finish
       //Reopening connections don't matter
 
@@ -1504,13 +1247,13 @@ public class ConnectionPoolSegment {
    }
 
    /**
-    * Deactivates the pool immediately - real closing all connections out from under the logical connections.
+    * Deactivates the pool immediately - real-closing all connections out from under the logical connections.
     */
    final void deactivateNow() {
       isActive = false;
       stats.deactivate();
       availableQueue.clear();
-      reopenService.getQueue().clear();
+      reopenExecutor.getQueue().clear();
       for(ConnectionPoolConnection conn : connections) {
          conn.forceRealClose();
          conn.state.set(ConnectionPoolConnection.STATE_DISCONNECTED);
@@ -1553,8 +1296,8 @@ public class ConnectionPoolSegment {
 
       if(!isActive) {
          return 0;
-      }
-
+      }      
+      
       int count = 0;
       for(ConnectionPoolConnection conn : connections) {
          if(conn.state.get() == ConnectionPoolConnection.STATE_AVAILABLE) {
@@ -1562,16 +1305,16 @@ public class ConnectionPoolSegment {
          }
       }
       return count;
-   }
-
+   }   
+   
    /**
     * Gets the maximum number of connections.
     * @return The maximum number of connections.
     */
    public int getMaxConnections() {
       return connections.length;
-   }
-
+   }   
+   
    /**
     * Gets the current size of the available queue.
     * @return The available queue size.
@@ -1583,11 +1326,11 @@ public class ConnectionPoolSegment {
    /**
     * Shutdown the segment.
     * <p>
-    * <ul>
-    * <li>Deactivate</li>
-    * <li>Shutdown the reopen service.</li>
-    * <li>Interrupts the closer threads, if any.</li>
-    * </ul>
+    *   <ul>
+    *     <li>Deactivate</li>
+    *     <li>Shutdown the reopen service.</li>
+    *     <li>Interrupts the closer threads, if any.</li>
+    *   </ul>
     * </p>
     */
    final void shutdown() {
@@ -1637,7 +1380,7 @@ public class ConnectionPoolSegment {
             StringBuilder buf = new StringBuilder(name);
             buf.append(": ");
             buf.append(message);
-            logger.info(buf.toString());
+            logger.info(buf.toString());            
          } catch(Throwable t) {
             //Ignore - logging should not kill anything
          }
@@ -1654,13 +1397,13 @@ public class ConnectionPoolSegment {
             StringBuilder buf = new StringBuilder(name);
             buf.append(":");
             buf.append(message);
-            logger.error(buf.toString());
+            logger.error(buf.toString());            
          } catch(Throwable t) {
             //Ignore - logging should not kill anything
          }
       }
-   }
-
+   }   
+   
    /**
     * Logs an error message.
     * @param message The message.
@@ -1673,7 +1416,7 @@ public class ConnectionPoolSegment {
             buf.append(":");
             buf.append(message);
             buf.append(":").append(t.getMessage());
-            logger.error(buf.toString());
+            logger.error(buf.toString());            
          } catch(Throwable t2) {
             //Ignore - logging should not kill anything
          }
@@ -1691,7 +1434,7 @@ public class ConnectionPoolSegment {
             StringBuilder buf = new StringBuilder(name);
             buf.append(":");
             buf.append(message);
-            logger.error(buf.toString(), t);
+            logger.error(buf.toString(), t);            
          } catch(Throwable t2) {
             //Ignore - logging should not kill anything
          }
