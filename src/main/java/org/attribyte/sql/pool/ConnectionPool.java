@@ -15,43 +15,32 @@
 
 package org.attribyte.sql.pool;
 
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.File;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicLong;
-
 import com.codahale.metrics.*;
+import com.codahale.metrics.Timer;
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 import org.attribyte.api.InitializationException;
 import org.attribyte.api.Logger;
 import org.attribyte.sql.ConnectionSupplier;
-import org.attribyte.util.DOMUtil;
-import org.attribyte.util.InitUtil;
-import org.attribyte.util.StringUtil;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.ParserConfigurationException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Provides logical database connections to an application from
@@ -115,72 +104,6 @@ import javax.xml.parsers.ParserConfigurationException;
  * <dd>The maximum amount of time to wait between physical connection attempts on failure. Default <tt>30s</tt>.</dd>
  * </dl>
  * </p>
- * <h3>Sample XML Configuration File</h3>
- * <p>
- * Segments defined in the <tt>active</tt> element are active on startup.
- * Segments in the <tt>reserve</tt> element are activated as necessary.
- * Cloned segments inherit all properties, with any property overridden.
- * </p>
- * <p>
- * <pre>
- * &lt;acp>
- *
- * &lt;!-- Any JDBC drivers to be loaded -->
- *
- * &lt;drivers>
- * &lt;driver class="com.mysql.jdbc.Driver"/>
- * &lt;/drivers>
- *
- * &lt;logger class="org.attribyte.api.ConsoleLogger"/>
- *
- * &lt;connections>
- *
- * &lt;!-- Properties that may be cloned by all connections (one or more) -->
- *
- * &lt;properties name="std">
- * &lt;property name="useUnicode" value="true"/>
- * &lt;property name="characterEncoding" value="utf8"/>
- * &lt;property name="characterSetResults" value="utf8"/>
- * &lt;property name="zeroDateTimeBehavior" value="convertToNull"/>
- * &lt;/properties>
- *
- * &lt;!-- Connections (one or more) -->
- *
- * &lt;connection name="local" user="apprw" password="secret" connectionString="jdbc:mysql://127.0.0.1/attribyte"
- * testSQL="SELECT 1 FROM test" testInterval="30s" createTimeout="60s">
- * &lt;properties clone="std"/>
- * &lt;/connection>
- * &lt;/connections>
- *
- * &lt;!-- Pools (one or more) -->
- *
- * &lt;pool name="localPool">
- * &lt;active min="1">
- * &lt;segment name="s0" size="5" concurrency="1" testOnLogicalOpen="false" testOnLogicalClose="false">
- * &lt;connection name="local">
- * &lt;acquireTimeout time="5ms"/>
- * &lt;activeTimeout time="45s"/>
- * &lt;lifetime time="15m"/>
- * &lt;/connection>
- * &lt;reconnect concurrency="2" maxWaitTime="1m"/>
- * &lt;/segment>
- * &lt;segment name="s1" clone="s0">
- * &lt;acquireTimeout time="20ms"/>
- * &lt;/segment>
- * &lt;/active>
- * &lt;reserve>
- * &lt;segment name="s2" clone="s0">
- * &lt;acquireTimeout time="50ms"/>
- * &lt;/segment>
- * &lt;segment name="s3" clone="s0" size="20"/>
- * &lt;acquireTimeout time="500ms"/>
- * &lt;/reserve>
- * &lt;idleCheckInterval time="30s"/>
- * &lt;saturatedAcquireTimeout time="1s"/>
- * &lt;/pool>
- * &lt;/acp>
- * </pre>
- * </p>
  * <h3>Sample Properties Configuration File</h3>
  * <p>
  * <pre>
@@ -210,7 +133,6 @@ import javax.xml.parsers.ParserConfigurationException;
  * connection.remote.properties=std
  *
  * pool.localPool.minActiveSegments=1
- * pool.localPool.startActiveSegments=2
  * pool.localPool.idleCheckInterval=30s
  * pool.localPool.saturatedAcquireTimeout=1s
  *
@@ -236,7 +158,6 @@ import javax.xml.parsers.ParserConfigurationException;
  * pool.localPool.segment2.acquireTimeout=50ms
  *
  * pool.remotePool.minActiveSegments=1
- * pool.remotePool.startActiveSegments=2
  * pool.remotePool.idleCheckInterval=30s
  * pool.remotePool.saturatedAcquireTimeout=1s
  *
@@ -264,81 +185,9 @@ import javax.xml.parsers.ParserConfigurationException;
 public class ConnectionPool implements ConnectionSupplier {
 
    /**
-    * Record statistics samples.
-    */
-   public interface StatsSampler {
-
-      /**
-       * Accept a statistics sample.
-       * @param stats The statistics.
-       */
-      public void acceptSample(Stats stats);
-
-      /**
-       * Initialize the sampler.
-       * @param props The properties.
-       * @param logger A logger.
-       * @throws InitializationException on initialization error.
-       */
-      public void init(Properties props, Logger logger) throws InitializationException;
-
-      /**
-       * Gets the frequency at which statistics are sampled.
-       * @return The sampling frequency.
-       */
-      public long getFrequencyMillis();
-   }
-
-   /**
     * Pool statistics.
     */
    public static class Stats {
-
-      /**
-       * Creates stats with all values specified.
-       */
-      private Stats(final String poolName,
-                    final String connectionDescription,
-                    final long connectionCount, final long connectionErrorCount, final long activeTimeoutCount,
-                    final long failedAcquisitionCount, final long segmentExpansionCount, final int activeSegments,
-                    final int activeConnections,
-                    final int availableConnections,
-                    final int maxConnections,
-                    final long activeUnmanagedConnectionCount,
-                    final double oneMinuteAcquisitionRate,
-                    final double fiveMinuteAcquisitionRate,
-                    final double fifteenMinuteAcquisitionRate,
-                    final double oneMinuteFailedAcquisitionRate,
-                    final double fiveMinuteFailedAcquisitionRate,
-                    final double fifteenMinuteFailedAcquisitionRate) {
-         this.poolName = poolName;
-         this.connectionDescription = connectionDescription;
-         this.connectionCount = connectionCount;
-         this.connectionErrorCount = connectionErrorCount;
-         this.activeTimeoutCount = activeTimeoutCount;
-         this.failedAcquisitionCount = failedAcquisitionCount;
-         this.segmentExpansionCount = segmentExpansionCount;
-         this.activeSegments = activeSegments;
-         this.activeConnections = activeConnections;
-         this.availableConnections = availableConnections;
-         this.maxConnections = maxConnections;
-         this.activeUnmanagedConnectionCount = activeUnmanagedConnectionCount;
-         this.oneMinuteAcquisitionRate = oneMinuteAcquisitionRate;
-         this.fiveMinuteAcquisitionRate = fiveMinuteAcquisitionRate;
-         this.fifteenMinuteAcquisitionRate = fifteenMinuteAcquisitionRate;
-         this.oneMinuteFailedAcquisitionRate = oneMinuteFailedAcquisitionRate;
-         this.fiveMinuteFailedAcquisitionRate = fiveMinuteFailedAcquisitionRate;
-         this.fifteenMinuteFailedAcquisitionRate = fifteenMinuteFailedAcquisitionRate;
-      }
-
-      /**
-       * Creates stats with all zero values.
-       * @param pool The pool.
-       * @return The stats.
-       */
-      private static Stats createZeroStats(final ConnectionPool pool) {
-         return new Stats(pool.name, pool.connectionDescription, 0L, 0L, 0L, 0L, 0L, 0, 0, 0, 0, 0L, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-      }
 
       /**
        * Creates a snapshot of the current pool stats.
@@ -375,32 +224,6 @@ public class ConnectionPool implements ConnectionSupplier {
          this.oneMinuteFailedAcquisitionRate = pool.failedAcquisitions.getOneMinuteRate();
          this.fiveMinuteFailedAcquisitionRate = pool.failedAcquisitions.getFiveMinuteRate();
          this.fifteenMinuteFailedAcquisitionRate = pool.failedAcquisitions.getFifteenMinuteRate();
-      }
-
-      /**
-       * Subtracts other stats from this.
-       * @param other The stats to subtract.
-       * @return The result.
-       */
-      public Stats subtract(final Stats other) {
-
-         return new Stats(this.poolName, this.connectionDescription,
-                 this.connectionCount - other.connectionCount,
-                 this.connectionErrorCount - other.connectionErrorCount,
-                 this.activeTimeoutCount - other.activeTimeoutCount,
-                 this.failedAcquisitionCount - other.failedAcquisitionCount,
-                 this.segmentExpansionCount - other.segmentExpansionCount,
-                 this.activeSegments - other.activeSegments,
-                 this.activeConnections - other.activeConnections,
-                 this.availableConnections - other.availableConnections,
-                 this.maxConnections,
-                 this.activeUnmanagedConnectionCount - other.activeUnmanagedConnectionCount,
-                 this.oneMinuteAcquisitionRate - other.oneMinuteAcquisitionRate,
-                 this.fiveMinuteAcquisitionRate - other.fiveMinuteAcquisitionRate,
-                 this.fifteenMinuteAcquisitionRate - other.fifteenMinuteAcquisitionRate,
-                 this.oneMinuteFailedAcquisitionRate - other.oneMinuteFailedAcquisitionRate,
-                 this.fiveMinuteFailedAcquisitionRate - other.fiveMinuteFailedAcquisitionRate,
-                 this.fifteenMinuteFailedAcquisitionRate - other.fifteenMinuteFailedAcquisitionRate);
       }
 
       /**
@@ -614,6 +437,79 @@ public class ConnectionPool implements ConnectionSupplier {
    public static class Initializer {
 
       /**
+       * Create an <tt>Initializer</tt> for each configured pool.
+       * @param config The configuration.
+       * @param passwordSource The password source. May be <tt>null</tt>.
+       * @param logger The logger. May be <tt>null</tt>.
+       * @return The list of <tt>Initializers</tt>.
+       * @throws InitializationException on invalid configuration.
+       */
+      public static final List<ConnectionPool.Initializer> fromConfig(final Config config,
+                                                                      final PasswordSource passwordSource,
+                                                                      final Logger logger) throws InitializationException {
+         return TypesafeConfig.poolsFromConfig(config, passwordSource, logger);
+      }
+
+      /**
+       * Parse a config file to create an <tt>Initializer</tt> for each configured pool.
+       * <p>
+       * File format is <a href="https://github.com/typesafehub/config/blob/master/HOCON.md">HOCON</a>.
+       * Configuration must appear in the path: <tt>acp</tt>
+       * </p>
+       * @param configFile The config file.
+       * @param passwordSource The password source. May be <tt>null</tt>.
+       * @param logger The logger. May be <tt>null</tt>.
+       * @return The list of <tt>Initializers</tt>.
+       * @throws InitializationException on invalid file or configuration.
+       */
+      public static final List<ConnectionPool.Initializer> fromConfigFile(final File configFile,
+                                                                          final PasswordSource passwordSource,
+                                                                          final Logger logger) throws InitializationException {
+         Config rootConfig = ConfigFactory.parseFile(configFile);
+         return fromConfig(rootConfig.getConfig("acp"), passwordSource, logger);
+      }
+
+      /**
+       * Parse properties to create an <tt>Initializer</tt> for each configured pool.
+       * @param passwordSource The password source. May be <tt>null</tt>.
+       * @param logger The logger. May be <tt>null</tt>.
+       * @return The list of <tt>Initializers</tt>.
+       * @throws InitializationException on invalid configuration.
+       */
+      public static final List<ConnectionPool.Initializer> fromProperties(final Properties props,
+                                                                          final PasswordSource passwordSource,
+                                                                          final Logger logger) throws InitializationException {
+         Config rootConfig = ConfigFactory.parseProperties(props);
+         return fromConfig(rootConfig, passwordSource, logger);
+      }
+
+      /**
+       * Parse properties to create an <tt>Initializer</tt> for each configured pool.
+       * @param passwordSource The password source. May be <tt>null</tt>.
+       * @param logger The logger. May be <tt>null</tt>.
+       * @return The list of <tt>Initializers</tt>.
+       * @throws InitializationException on invalid file or configuration.
+       */
+      public static final List<ConnectionPool.Initializer> fromPropertiesFile(final File propsFile,
+                                                                              final PasswordSource passwordSource,
+                                                                              final Logger logger) throws InitializationException {
+         Properties props = new Properties();
+         FileInputStream fis = null;
+         try {
+            try {
+               fis = new FileInputStream(propsFile);
+               props.load(fis);
+            } finally {
+               if(fis != null) fis.close();
+            }
+         } catch(IOException ioe) {
+            throw new InitializationException("Problem loading properties", ioe);
+         }
+
+         return fromProperties(props, passwordSource, logger);
+      }
+
+      /**
        * Sets the name of the pool.
        * @param name The name.
        * @return A self-reference.
@@ -674,6 +570,16 @@ public class ConnectionPool implements ConnectionSupplier {
       }
 
       /**
+       * Sets the minimum delay between segment expansions in milliseconds.
+       * @param minSegmentExpansionDelayMillis The delay.
+       * @return A self-reference.
+       */
+      public Initializer setMinSegmentExpansionDelay(final long minSegmentExpansionDelayMillis) {
+         this.minSegmentExpansionDelayMillis = minSegmentExpansionDelayMillis;
+         return this;
+      }
+
+      /**
        * Sets the interval between checks for idle segments.
        * @param idleCheckInterval The idle check interval.
        * @param idleCheckIntervalUnit The idle check interval units.
@@ -702,17 +608,6 @@ public class ConnectionPool implements ConnectionSupplier {
        */
       public Initializer setLogger(final Logger logger) {
          this.logger = logger;
-         return this;
-      }
-
-
-      /**
-       * Sets the statistics sampler.
-       * @param statsSampler The sampler.
-       * @return A self-reference.
-       */
-      public Initializer setStatsSampler(final StatsSampler statsSampler) {
-         this.statsSampler = statsSampler;
          return this;
       }
 
@@ -747,7 +642,7 @@ public class ConnectionPool implements ConnectionSupplier {
          }
 
          ConnectionPool pool = new ConnectionPool(name, activeSegments, reserveSegments, saturatedAcquireTimeoutMillis,
-                 minActiveSegments, idleCheckIntervalMillis, statsSampler, logger);
+                 minActiveSegments, idleCheckIntervalMillis, minSegmentExpansionDelayMillis, logger);
 
          for(String alias : aka) {
             pool.aka.add(alias);
@@ -766,370 +661,15 @@ public class ConnectionPool implements ConnectionSupplier {
          return pool;
       }
 
-      /**
-       * Creates pool initializers from properties.
-       * @param props The properties.
-       * @return The initializer
-       * @throws InitializationException if configuration is invalid.
-       */
-      public static final Initializer[] fromProperties(final Properties props) throws InitializationException {
-         return fromProperties(props, null);
-      }
-
-      /**
-       * Creates pool initializers from properties.
-       * @param props The properties.
-       * @param passwordSource A password source. May be <tt>null</tt>.
-       * @return The initializer
-       * @throws InitializationException if configuration is invalid.
-       */
-      public static final Initializer[] fromProperties(final Properties props,
-                                                       final PasswordSource passwordSource) throws InitializationException {
-         JDBConnection.initDrivers(props);
-         Map<String, JDBConnection> connectionMap = JDBConnection.mapFromProperties(props);
-         Properties poolProps = new InitUtil("pool.", props, false).getProperties();
-
-         Logger globalLogger = null;
-         if(props.getProperty("logger.class") != null) {
-            try {
-               globalLogger = (Logger)(Class.forName(props.getProperty("logger.class")).newInstance());
-            } catch(Throwable e) {
-               throw new InitializationException("Unable to initialize logger", e);
-            }
-         }
-
-         Set<String> poolNameSet = Sets.newHashSet();
-         List<Initializer> initializerList = Lists.newArrayListWithExpectedSize(8);
-         for(Object k : poolProps.keySet()) {
-            String key = (String)k;
-            int index = key.indexOf('.');
-            if(index > 0) {
-               String poolName = key.substring(0, index);
-               if(!poolNameSet.contains(poolName)) {
-                  poolNameSet.add(poolName);
-                  ConnectionPool.Initializer poolInitializer = fromProperties(poolName, poolName + ".", poolProps, connectionMap, passwordSource);
-                  poolInitializer.setLogger(globalLogger);
-                  poolInitializer.setName(poolName);
-                  initializerList.add(poolInitializer);
-               }
-            }
-         }
-
-         return initializerList.toArray(new Initializer[initializerList.size()]);
-      }
-
-      /**
-       * Initializes a pool from properties.
-       * @param poolName The pool name.
-       * @param prefix The property prefix (e.g. '.').
-       * @param props The properties.
-       * @param connectionMap A map of configured connections.
-       * @param passwordSource A password source. May be <tt>null</tt>.
-       * @return The initializer
-       * @throws InitializationException if configuration is invalid.
-       */
-      public static final Initializer fromProperties(final String poolName,
-                                                     final String prefix, final Properties props,
-                                                     final Map<String, JDBConnection> connectionMap,
-                                                     final PasswordSource passwordSource) throws InitializationException {
-         InitUtil init = new InitUtil(prefix, props, false);
-         Properties initProps = init.getProperties();
-
-         Initializer poolInit = new Initializer();
-         poolInit.setName(poolName);
-
-         poolInit.setMinActiveSegments(init.getIntProperty("minActiveSegments", 1));
-
-         poolInit.setSaturatedAcquireTimeout(InitUtil.millisFromTime(init.getProperty("saturatedAcquireTimeout", "0ms")), TimeUnit.MILLISECONDS);
-         poolInit.setIdleCheckInterval(InitUtil.millisFromTime(init.getProperty("idleCheckInterval", "60s")), TimeUnit.MILLISECONDS);
-
-         Set<String> segmentNameSet = Sets.newHashSet();
-         for(Object k : initProps.keySet()) {
-            String key = (String)k;
-            if(key.startsWith("segment")) {
-               int index = key.indexOf('.');
-               if(index > 0) {
-                  segmentNameSet.add(key.substring(0, index));
-               }
-            }
-         }
-
-         List<String> segmentNames = Lists.newArrayList(segmentNameSet);
-         Collections.sort(segmentNames);
-
-         Map<String, ConnectionPoolSegment.Initializer> initializerMap = Maps.newHashMap();
-
-         for(String segmentName : segmentNames) {
-            ConnectionPoolSegment.Initializer segmentInitializer;
-            InitUtil segmentPropsInit = new InitUtil(segmentName + ".", initProps, false);
-            String cloneSegmentName = segmentPropsInit.getProperty("clone");
-            ConnectionPoolSegment.Initializer baseInitializer = initializerMap.get(cloneSegmentName);
-            if(cloneSegmentName != null && baseInitializer == null) {
-               throw new InitializationException("Forward 'clone' reference to " + cloneSegmentName);
-            } else if(baseInitializer == null) {
-               segmentInitializer = new ConnectionPoolSegment.Initializer();
-            } else {
-               segmentInitializer = new ConnectionPoolSegment.Initializer(baseInitializer);
-            }
-
-            Properties segmentInitProps = segmentPropsInit.getProperties();
-            segmentInitProps.put("name", segmentName);
-            segmentInitializer = ConnectionPoolSegment.Initializer.fromProperties(poolName, segmentInitializer, segmentInitProps, connectionMap);
-            segmentInitializer.setPasswordSource(passwordSource);
-            initializerMap.put(segmentName, segmentInitializer);
-         }
-
-         int startActiveSegments = init.getIntProperty("startActiveSegments", 1);
-         for(int i = 0; i < segmentNames.size(); i++) {
-            if(i < startActiveSegments) {
-               poolInit.addActiveSegment(initializerMap.get(segmentNames.get(i)).createSegment());
-            } else {
-               poolInit.addReserveSegment(initializerMap.get(segmentNames.get(i)).createSegment());
-            }
-         }
-
-         return poolInit;
-      }
-
-      /**
-       * Creates pool initializers from a DOM element containing the XML configuration,
-       * a connection definition map and a password source.
-       * @param rootElem The XML root element.
-       * @param connectionMap A map of connection vs. name. If <tt>null</tt>, connections must be configured through the XML <tt>connections</tt> element.
-       * @param passwordSource A password source.
-       * @return The initializers.
-       * @throws InitializationException if configuration is invalid.
-       */
-      public static final Initializer[] fromXML(final Element rootElem,
-                                                Map<String, JDBConnection> connectionMap,
-                                                final PasswordSource passwordSource) throws InitializationException {
-
-         JDBConnection.initDrivers(rootElem);
-
-         Logger globalLogger = null;
-
-         Element loggerElem = DOMUtil.getFirstChild(rootElem, "logger");
-         if(loggerElem != null) {
-            String loggerClassName = loggerElem.getAttribute("class");
-            if(loggerClassName.length() > 0) {
-               try {
-                  globalLogger = (Logger)(Class.forName(loggerClassName).newInstance());
-               } catch(Throwable e) {
-                  throw new InitializationException("Unable to initialize logger", e);
-               }
-            }
-         }
-
-         if(connectionMap == null) {
-            Element connectionsElem = DOMUtil.getFirstChild(rootElem, "connections");
-            if(connectionsElem != null) {
-               if(connectionsElem.getAttribute("import").length() > 0) {
-                  File connectionsFile = new File(connectionsElem.getAttribute("import"));
-                  try {
-                     DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-                     Document doc = builder.parse(connectionsFile);
-                     connectionsElem = doc.getDocumentElement();
-                  } catch(IOException ioe) {
-                     throw new InitializationException("Unable to parse connections import, '" + connectionsFile.getAbsolutePath(), ioe);
-                  } catch(ParserConfigurationException pe) {
-                     throw new InitializationException("Unable to load XML parser", pe);
-                  } catch(SAXException se) {
-                     throw new InitializationException("Unable to parse connections import, '" + connectionsFile.getAbsolutePath(), se);
-                  }
-               }
-
-               connectionMap = JDBConnection.mapFromXML(connectionsElem);
-            }
-         }
-
-         NodeList poolList = rootElem.getElementsByTagName("pool");
-         if(poolList.getLength() == 0) {
-            throw new InitializationException("At least one 'pool' element must be present");
-         }
-
-         Initializer[] initializers = new Initializer[poolList.getLength()];
-
-         for(int p = 0; p < poolList.getLength(); p++) {
-
-            Map<String, ConnectionPoolSegment.Initializer> segmentInitializers = Maps.newHashMap();
-
-            Element elem = (Element)poolList.item(p);
-            Element connectionsElem = DOMUtil.getFirstChild(elem, "connections");
-            Map<String, JDBConnection> poolConnectionMap = connectionMap;
-
-            if(connectionsElem != null) {
-               Map<String, JDBConnection> useMap = Maps.newHashMap();
-               if(connectionMap != null) {
-                  useMap.putAll(connectionMap);
-               }
-
-               poolConnectionMap = JDBConnection.mapFromXML(connectionsElem);
-               if(poolConnectionMap != null) {
-                  useMap.putAll(poolConnectionMap);
-               }
-
-               poolConnectionMap = useMap.size() == 0 ? null : useMap;
-            }
-
-            Initializer initializer = new Initializer();
-
-            initializer.name = elem.getAttribute("name");
-            initializer.logger = globalLogger;
-
-            Element akaElem = DOMUtil.getFirstChild(elem, "aka");
-            if(akaElem != null) {
-               List<Element> aliasList = DOMUtil.getChildElementsByTagName(akaElem, "alias");
-               for(Element alias : aliasList) {
-                  String name = alias.getAttribute("name").trim();
-                  if(name.length() > 0) {
-                     initializer.aka.add(name);
-                  }
-               }
-            }
-
-            loggerElem = DOMUtil.getFirstChild(elem, "logger");
-            if(loggerElem != null) {
-               String loggerClassName = loggerElem.getAttribute("class");
-               if(loggerClassName.length() > 0) {
-                  try {
-                     initializer.logger = (Logger)(Class.forName(loggerClassName).newInstance());
-                  } catch(Throwable e) {
-                     throw new InitializationException("Unable to initialize logger", e);
-                  }
-               } else {
-                  throw new InitializationException("Unable to initialize logger - a 'class' must be specified");
-               }
-            }
-
-            Element statsSamplerElem = DOMUtil.getFirstChild(elem, "sampler");
-            if(statsSamplerElem != null) {
-               String samplerClassName = statsSamplerElem.getAttribute("class");
-               if(samplerClassName.length() > 0) {
-                  try {
-                     initializer.statsSampler = (StatsSampler)(Class.forName(samplerClassName).newInstance());
-                     Element samplerProperties = DOMUtil.getFirstChild(statsSamplerElem, "properties");
-                     Properties properties = new Properties();
-                     if(samplerProperties != null) {
-                        List<Element> propertyElements = DOMUtil.getChildElementsByTagName(samplerProperties, "property");
-                        for(Element propElem : propertyElements) {
-                           String name = propElem.getAttribute("name").trim();
-                           String val = propElem.getAttribute("value").trim();
-                           if(name.length() > 0) {
-                              properties.setProperty(name, val);
-                           }
-                        }
-                     }
-                     initializer.statsSampler.init(properties, initializer.logger);
-                  } catch(Throwable t) {
-                     throw new InitializationException("Unable to initialize sampler", t);
-                  }
-               } else {
-                  throw new InitializationException("Unable to initialize sampler - a 'class' must be specified");
-               }
-            }
-
-            Element activeElem = DOMUtil.getFirstChild(elem, "active");
-            if(activeElem == null) {
-               throw new InitializationException("A single 'active' element must be present");
-            } else {
-               String minActive = activeElem.getAttribute("min");
-               if(minActive.length() > 0) {
-                  try {
-                     initializer.minActiveSegments = Integer.parseInt(minActive);
-                  } catch(Exception e) {
-                     throw new InitializationException("The 'min' for the 'active' element must be an integer");
-                  }
-               } else {
-                  initializer.minActiveSegments = 1;
-               }
-
-               NodeList segmentList = activeElem.getElementsByTagName("segment");
-               if(segmentList.getLength() == 0) {
-                  throw new InitializationException("At least one 'segment' must be defined in the 'active' element");
-               } else {
-                  for(int i = 0; i < segmentList.getLength(); i++) {
-                     Element segmentElem = (Element)segmentList.item(i);
-                     String segmentName = segmentElem.getAttribute("name");
-                     if(segmentName.length() == 0) {
-                        throw new InitializationException("A 'name' must be supplied for all segments.");
-                     } else if(segmentInitializers.get(segmentName) != null) {
-                        throw new InitializationException("The 'name' must be unique for all segmements in a pool");
-                     }
-
-                     String clone = segmentElem.getAttribute("clone");
-                     ConnectionPoolSegment.Initializer segmentInitializer;
-                     if(clone.length() > 0) {
-                        segmentInitializer = segmentInitializers.get(clone);
-                        if(segmentInitializer == null) {
-                           throw new InitializationException("Unable to clone. Segment not found: '" + clone + "'");
-                        }
-                        ConnectionPoolSegment.Initializer.fromXML(initializer.name, segmentInitializer, segmentElem, poolConnectionMap);
-                     } else {
-                        segmentInitializer = ConnectionPoolSegment.Initializer.fromXML(initializer.name, segmentElem, poolConnectionMap);
-                     }
-                     segmentInitializer.validate(true);
-                     segmentInitializer.setLogger(initializer.logger);
-                     segmentInitializer.setPasswordSource(passwordSource);
-                     segmentInitializers.put(segmentName, segmentInitializer);
-                     initializer.activeSegments.add(segmentInitializer.createSegment());
-                  }
-               }
-            }
-
-            Element reserveElem = DOMUtil.getFirstChild(elem, "reserve");
-            if(reserveElem != null) {
-               NodeList segmentList = reserveElem.getElementsByTagName("segment");
-               if(segmentList.getLength() > 0) {
-                  for(int i = 0; i < segmentList.getLength(); i++) {
-                     Element segmentElem = (Element)segmentList.item(i);
-                     String segmentName = segmentElem.getAttribute("name");
-                     if(segmentName.length() == 0) {
-                        throw new InitializationException("A 'name' must be supplied for all segments.");
-                     } else if(segmentInitializers.get(segmentName) != null) {
-                        throw new InitializationException("The 'name' must be unique for all segmements in a pool");
-                     }
-                     String clone = segmentElem.getAttribute("clone");
-                     ConnectionPoolSegment.Initializer segmentInitializer;
-                     if(clone.length() > 0) {
-                        segmentInitializer = segmentInitializers.get(clone);
-                        if(segmentInitializer == null) {
-                           throw new InitializationException("Unable to clone. Segment not found: '" + clone + "'");
-                        }
-                        ConnectionPoolSegment.Initializer.fromXML(initializer.name, segmentInitializer, segmentElem, poolConnectionMap);
-                     } else {
-                        segmentInitializer = ConnectionPoolSegment.Initializer.fromXML(initializer.name, segmentElem, poolConnectionMap);
-                     }
-                     segmentInitializer.validate(true);
-                     segmentInitializer.setLogger(initializer.logger);
-                     segmentInitializer.setPasswordSource(passwordSource);
-                     segmentInitializers.put(segmentName, segmentInitializer);
-                     initializer.reserveSegments.add(segmentInitializer.createSegment());
-                  }
-               }
-            }
-
-            if(initializer.minActiveSegments > 1) {
-               initializer.idleCheckIntervalMillis = Util.millisFromElem(elem, "idleCheckInterval", 60000L);
-               if(initializer.idleCheckIntervalMillis < 1L) {
-                  throw new InitializationException("The 'time' for 'idleCheckInterval' must be > 0");
-               }
-            }
-            initializer.saturatedAcquireTimeoutMillis = Util.millisFromElem(elem, "saturatedAcquireTimeout", 0L);
-            initializers[p] = initializer;
-         }
-
-         return initializers;
-      }
-
       String name;
       final Set<String> aka = Sets.newHashSet();
       final List<ConnectionPoolSegment> activeSegments = Lists.newArrayListWithExpectedSize(4);
       final List<ConnectionPoolSegment> reserveSegments = Lists.newArrayListWithExpectedSize(4);
-      int minActiveSegments = 0;
+      int minActiveSegments;
+      long minSegmentExpansionDelayMillis = 1000L;
       long saturatedAcquireTimeoutMillis;
       long idleCheckIntervalMillis = 60000L;
       Logger logger;
-      ConnectionPool.StatsSampler statsSampler = null;
    } //Initializer
 
    /**
@@ -1138,169 +678,6 @@ public class ConnectionPool implements ConnectionSupplier {
     */
    public static Initializer newInitializer() {
       return new Initializer();
-   }
-
-   /**
-    * Creates pools from a DOM element containing the XML configuration.
-    * @param elem The root configuration element.
-    * @return The pools.
-    * @throws SQLException on SQL error while creating the pool.
-    * @throws InitializationException if initialization elements are missing or incorrect.
-    */
-   public static ConnectionPool[] createPools(final Element elem) throws SQLException, InitializationException {
-
-      Initializer[] initializers = ConnectionPool.Initializer.fromXML(elem, null, null);
-      ConnectionPool[] pools = new ConnectionPool[initializers.length];
-      for(int i = 0; i < pools.length; i++) {
-         pools[i] = initializers[i].createPool();
-      }
-
-      return pools;
-   }
-
-   /**
-    * Creates a pool from a DOM element containing the XML configuration and a connectdion definition map.
-    * @param elem The element.
-    * @param connectionMap A map of <tt>JDBCConnection</tt> vs. name. May be <tt>null</tt>.
-    * @return The pool.
-    * @throws SQLException on SQL error while creating the pool.
-    * @throws InitializationException if initialization elements are missing or incorrect.
-    */
-   public static ConnectionPool[] createPools(Element elem,
-                                              Map<String, JDBConnection> connectionMap) throws SQLException, InitializationException {
-      return createPools(elem, connectionMap, null);
-   }
-
-   /**
-    * Creates a pool from a DOM element containing the XML configuration, a connection definition map and a password source.
-    * @param elem The element.
-    * @param connectionMap A map of <tt>JDBCConnection</tt> vs. name. May be <tt>null</tt>.
-    * @param passwordSource The password source.
-    * @return The pool.
-    * @throws SQLException on SQL error while creating the pool.
-    * @throws InitializationException if initialization elements are missing or incorrect.
-    */
-   public static ConnectionPool[] createPools(final Element elem,
-                                              final Map<String, JDBConnection> connectionMap,
-                                              final PasswordSource passwordSource) throws SQLException, InitializationException {
-
-      Initializer[] initializers = ConnectionPool.Initializer.fromXML(elem, connectionMap, passwordSource);
-      ConnectionPool[] pools = new ConnectionPool[initializers.length];
-      for(int i = 0; i < pools.length; i++) {
-         pools[i] = initializers[i].createPool();
-      }
-
-      return pools;
-   }
-
-   /**
-    * Creates pools from a configuration file containing the XML configuration.
-    * @param file The configuration file.
-    * @return The pools.
-    * @throws IOException on file parse error.
-    * @throws SQLException on SQL error while creating the pool.
-    * @throws InitializationException if initialization elements are missing or incorrect.
-    */
-   public static ConnectionPool[] createPools(final File file) throws IOException, SQLException, InitializationException {
-      return createPools(file, null, null);
-   }
-
-   /**
-    * Creates pools from a configuration file containing the XML configuration and a connection definition map.
-    * @param file The configuration file.
-    * @param connectionMap A map of <tt>JDBCConnection</tt> vs. name. May be <tt>null</tt>.
-    * @return The pools.
-    * @throws IOException on file parse error.
-    * @throws SQLException on SQL error while creating the pool.
-    * @throws InitializationException if initialization elements are missing or incorrect.
-    */
-   public static ConnectionPool[] createPools(final File file,
-                                              final Map<String, JDBConnection> connectionMap) throws IOException, SQLException, InitializationException {
-      return createPools(file, connectionMap, null);
-   }
-
-   /**
-    * Creates pools from a configuration file containing the XML configuration, a connection definition map
-    * and a password source.
-    * @param file The configuration file.
-    * @param connectionMap A map of <tt>JDBCConnection</tt> vs. name. May be <tt>null</tt>.
-    * @param passwordSource A password source.
-    * @return The pools.
-    * @throws IOException on file parse error.
-    * @throws SQLException on SQL error while creating the pool.
-    * @throws InitializationException if initialization elements are missing or incorrect.
-    */
-   public static ConnectionPool[] createPools(final File file,
-                                              final Map<String, JDBConnection> connectionMap,
-                                              final PasswordSource passwordSource) throws IOException, SQLException, InitializationException {
-      if(!file.exists()) {
-         throw new InitializationException("The configuration file, " + file.getAbsolutePath() + " does not exist");
-      } else if(!file.canRead()) {
-         throw new InitializationException("The configuration file, " + file.getAbsolutePath() + " can't be read");
-      }
-
-      try {
-         DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-         Document doc = builder.parse(file);
-         Element elem = doc.getDocumentElement();
-         return createPools(elem, connectionMap, passwordSource);
-      } catch(ParserConfigurationException pe) {
-         throw new InitializationException("An XML parser was not found", pe);
-      } catch(SAXException se) {
-         throw new IOException("The configuration file could not be parsed", se);
-      }
-   }
-
-   /**
-    * Creates pools from a stream opened on XML configuration data.
-    * @param is The stream.
-    * @return The pools.
-    * @throws IOException on file parse error.
-    * @throws SQLException on SQL error while creating the pool.
-    * @throws InitializationException if initialization elements are missing or incorrect.
-    */
-   public static ConnectionPool[] createPools(final InputStream is) throws IOException, SQLException, InitializationException {
-      return createPools(is, null, null);
-   }
-
-   /**
-    * Creates pools from a stream opened on XML configuration data and a connection definition map.
-    * @param is The stream.
-    * @param connectionMap A map of <tt>JDBCConnection</tt> vs. name. May be <tt>null</tt>.
-    * @return The pools.
-    * @throws IOException on file parse error.
-    * @throws SQLException on SQL error while creating the pool.
-    * @throws InitializationException if initialization elements are missing or incorrect.
-    */
-   public static ConnectionPool[] createPools(final InputStream is,
-                                              final Map<String, JDBConnection> connectionMap) throws IOException, SQLException, InitializationException {
-      return createPools(is, connectionMap, null);
-   }
-
-   /**
-    * Creates pools from a stream opened on XML configuration data, a connection definition map and a password source.
-    * @param is The stream.
-    * @param connectionMap A map of <tt>JDBCConnection</tt> vs. name. May be <tt>null</tt>.
-    * @param passwordSource A password source.
-    * @return The pools.
-    * @throws IOException on file parse error.
-    * @throws SQLException on SQL error while creating the pool.
-    * @throws InitializationException if initialization elements are missing or incorrect.
-    */
-   public static ConnectionPool[] createPools(final InputStream is,
-                                              final Map<String, JDBConnection> connectionMap,
-                                              final PasswordSource passwordSource) throws IOException, SQLException, InitializationException {
-
-      try {
-         DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-         Document doc = builder.parse(is);
-         Element elem = doc.getDocumentElement();
-         return createPools(elem, connectionMap, passwordSource);
-      } catch(ParserConfigurationException pe) {
-         throw new InitializationException("An XML parser was not found", pe);
-      } catch(SAXException se) {
-         throw new IOException("The configuration file could not be parsed", se);
-      }
    }
 
    /**
@@ -1315,7 +692,7 @@ public class ConnectionPool implements ConnectionSupplier {
     * @param saturatedAcquireTimeoutMillis The timeout before failure when pool is saturated (all connections busy).
     * @param minActiveSegments The minimum number of active segments.
     * @param idleCheckIntervalMillis The frequency of idle pool checks.
-    * @param statsSampler The stats sampler.
+    * @param minSegmentExpansionDelayMillis The minimum amount of time that must elapse between segment expansion.
     * @param logger The logger.
     * @throws SQLException if connections could not be created.
     * @throws InitializationException if pool could not be created.
@@ -1324,13 +701,12 @@ public class ConnectionPool implements ConnectionSupplier {
                           final List<ConnectionPoolSegment> activeSegments,
                           final List<ConnectionPoolSegment> reserveSegments,
                           final long saturatedAcquireTimeoutMillis,
-                          int minActiveSegments,
+                          final int minActiveSegments,
                           final long idleCheckIntervalMillis,
-                          final StatsSampler statsSampler,
+                          final long minSegmentExpansionDelayMillis,
                           final Logger logger) throws SQLException, InitializationException {
 
       this.name = name;
-
       this.acquisitions = new Timer();
       this.failedAcquisitions = new Meter();
       this.activeUnmanagedConnections = new Counter();
@@ -1387,15 +763,6 @@ public class ConnectionPool implements ConnectionSupplier {
 
       this.SATURATED_MESSAGE = "Connection pool '" + name + "' is saturated";
       this.logger = logger;
-      this.statsSampler = statsSampler;
-
-      if(activeSegments == null || activeSegments.size() == 0) {
-         throwInitException("The list of active segments must not be empty");
-      }
-
-      if(minActiveSegments == 0) {
-         minActiveSegments = 1;
-      }
 
       List<ConnectionPoolSegment> segments = Lists.newArrayList(activeSegments);
 
@@ -1418,11 +785,16 @@ public class ConnectionPool implements ConnectionSupplier {
 
       int maxSegments = segments.size();
 
-      if(minActiveSegments > activeSegments.size()) {
-         throwInitException("The 'minActiveSegments' must be <= the total number of active segments");
+      if(minActiveSegments > segments.size()) {
+         throwInitException("The 'minActiveSegments' must be <= the total number of segments");
+      }
+
+      if(minActiveSegments < 1) {
+         throwInitException("The 'minActiveSegments' must be >= 1");
       }
 
       this.minActiveSegments = minActiveSegments;
+      this.minSegmentExpansionDelayMillis = minSegmentExpansionDelayMillis;
       this.segments = new ConnectionPoolSegment[maxSegments];
       int pos = 0;
       for(ConnectionPoolSegment segment : segments) {
@@ -1432,22 +804,23 @@ public class ConnectionPool implements ConnectionSupplier {
       this.saturatedAcquireTimeoutMillis = saturatedAcquireTimeoutMillis;
 
       this.activeSegments = activeSegments.size();
-      if(minActiveSegments > 0) {
-         for(ConnectionPoolSegment segment : activeSegments) {
-            try {
-               segment.activate();
-            } catch(SQLException se) {
-               throw new InitializationException("Problem activating segment '" + segment.name + "' in pool '" + name + "'", se);
-            }
+
+      for(ConnectionPoolSegment segment : activeSegments) {
+         try {
+            segment.activate();
+         } catch(SQLException se) {
+            throw new InitializationException("Problem activating segment '" + segment.name + "' in pool '" + name + "'", se);
          }
       }
 
       if(this.segments.length > 1 && this.minActiveSegments != this.segments.length) {
          segmentSignalQueue = new ArrayBlockingQueue<Object>(1);
-         String signalMonitorThreadName = StringUtil.hasContent(name) ? (name + ":SignalMonitor") : "SignalMonitor";
+         String signalMonitorThreadName = Strings.isNullOrEmpty(name) ? "SignalMonitor" : (name + ":SignalMonitor");
          segmentSignalMonitorThread = new Thread(new SegmentSignalMonitor(), "ACP:" + signalMonitorThreadName);
          segmentSignalMonitorThread.start();
-         idleSegmentMonitorService = Executors.newScheduledThreadPool(1, Util.createThreadFactoryBuilder(name, "IdleMonitor"));
+         idleSegmentMonitorService = MoreExecutors.getExitingScheduledExecutorService(
+                 new ScheduledThreadPoolExecutor(1, Util.createThreadFactoryBuilder(name, "IdleMonitor"))
+         );
          idleSegmentMonitorService.scheduleWithFixedDelay(new IdleSegmentMonitor(), idleCheckIntervalMillis, idleCheckIntervalMillis, TimeUnit.MILLISECONDS);
       } else {
          segmentSignalQueue = null;
@@ -1455,28 +828,9 @@ public class ConnectionPool implements ConnectionSupplier {
          idleSegmentMonitorService = null;
       }
 
-      inactiveMonitorService = new ScheduledThreadPoolExecutor(1, Util.createThreadFactoryBuilder(name, "InactiveMonitor"));
-      inactiveMonitorService.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-      inactiveMonitorService.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-
-      if(statsSampler != null) {
-         this.statsSamplerService = Executors.newScheduledThreadPool(1, Util.createThreadFactoryBuilder(name, "StatsSampler"));
-         this.statsSamplerService.scheduleWithFixedDelay(
-                 new Runnable() {
-                    public void run() {
-                       try {
-                          statsSampler.acceptSample(new Stats(ConnectionPool.this));
-                       } catch(Throwable t) {
-                          statsSampler.acceptSample(Stats.createZeroStats(ConnectionPool.this));
-                          logError("Problem sampling statistics", t);
-                       }
-                    }
-                 },
-                 statsSampler.getFrequencyMillis(), statsSampler.getFrequencyMillis(), TimeUnit.MILLISECONDS);
-
-      } else {
-         this.statsSamplerService = null;
-      }
+      inactiveMonitorService = MoreExecutors.getExitingScheduledExecutorService(
+              new ScheduledThreadPoolExecutor(1, Util.createThreadFactoryBuilder(name, "InactiveMonitor"))
+      );
 
       this.connectionDescription = buildConnectionDescription();
 
@@ -1594,9 +948,25 @@ public class ConnectionPool implements ConnectionSupplier {
    /**
     * Signals that a new segment should be activated.
     */
-   final void signalActivateSegment() {
+   final void signalActivateSegment() throws SQLException {
+
+      /*
+         Note that 'offer' does so only if it can be done
+         immediately without exceeding the queue capacity.
+         The queue capacity is '1', so this means that
+         signals may be ignored. Either way, this message
+         will never block.
+       */
+
       if(segmentSignalQueue != null) {
          segmentSignalQueue.offer(ACTIVATE_SEGMENT_SIGNAL);
+      } else if(activeSegments == 0) { //Single segment, no monitor, started with the one segment deactivated...
+         synchronized(this) {
+            if(activeSegments == 0) { //... and DCL works here because activeSegments is volatile.
+               segments[0].activate();
+               activeSegments = 1;
+            }
+         }
       }
    }
 
@@ -1606,11 +976,6 @@ public class ConnectionPool implements ConnectionSupplier {
    public final void shutdown() {
 
       logInfo("Shutting down...");
-
-      if(statsSamplerService != null) {
-         logInfo("Shutting down sampler service...");
-         statsSamplerService.shutdownNow();
-      }
 
       if(idleSegmentMonitorService != null) {
          logInfo("Shutting down idle segment monitor service...");
@@ -1633,6 +998,8 @@ public class ConnectionPool implements ConnectionSupplier {
 
       logInfo("Shutting down inactive monitor service...");
       inactiveMonitorService.shutdownNow();
+
+      Clock.shutdown();
 
       logInfo("Shut down");
    }
@@ -1661,17 +1028,19 @@ public class ConnectionPool implements ConnectionSupplier {
             while(true) {
                Object signal = segmentSignalQueue.take();
                if(signal == ACTIVATE_SEGMENT_SIGNAL && activeSegments < segments.length) {
-                  try {
-                     segments[activeSegments].activate();
-                     activeSegments++; //Increment only if activate does not throw exception.
-                     lastActivateTime = System.currentTimeMillis();
-                     lastSegmentIdleStart = 0L;
-                     segmentExpansions.incrementAndGet();
-                     logInfo("Activated segment " + segments[activeSegments - 1].name);
-                  } catch(SQLException se) {
-                     logError("Problem activating segment", se);
-                     segments[activeSegments].deactivate();
-                  }
+                  if(lastActivateTime == 0L || System.currentTimeMillis() - lastActivateTime > minSegmentExpansionDelayMillis) {
+                     try {
+                        segments[activeSegments].activate();
+                        activeSegments++; //Increment only if activate does not throw exception.
+                        lastActivateTime = System.currentTimeMillis();
+                        lastSegmentIdleStart = 0L;
+                        segmentExpansions.incrementAndGet();
+                        logInfo("Activated segment " + segments[activeSegments - 1].name);
+                     } catch(SQLException se) {
+                        logError("Problem activating segment", se);
+                        segments[activeSegments].deactivate();
+                     }
+                  } //else ignore this signal
                } else if(activeSegments > minActiveSegments) {
                   if(signal == DEACTIVATE_SEGMENT_SIGNAL) {
                      ConnectionPoolSegment toDeactivate = segments[--activeSegments];
@@ -1735,14 +1104,6 @@ public class ConnectionPool implements ConnectionSupplier {
     */
    public int getTotalSegments() {
       return segments.length;
-   }
-
-   /**
-    * Gets the stats sampler, if any.
-    * @return The sampler.
-    */
-   public StatsSampler getStatsSampler() {
-      return statsSampler;
    }
 
    /**
@@ -1846,6 +1207,11 @@ public class ConnectionPool implements ConnectionSupplier {
    private final int minActiveSegments;
 
    /**
+    * The minimum amount of time that must elapse between segment expansion.
+    */
+   private final long minSegmentExpansionDelayMillis;
+
+   /**
     * Method used for testing to access segments.
     * @return The segments.
     */
@@ -1869,19 +1235,9 @@ public class ConnectionPool implements ConnectionSupplier {
    private final ScheduledExecutorService idleSegmentMonitorService;
 
    /**
-    * Periodically samples pool statistics.
-    */
-   private final ScheduledExecutorService statsSamplerService;
-
-   /**
-    * The stats sampler, if any.
-    */
-   private final StatsSampler statsSampler;
-
-   /**
     * Service used by segments to check for inactive, logically open, connections.
     */
-   private final ScheduledThreadPoolExecutor inactiveMonitorService;
+   private final ScheduledExecutorService inactiveMonitorService;
 
    /**
     * Monitors the segment state change queue.
@@ -2026,5 +1382,31 @@ public class ConnectionPool implements ConnectionSupplier {
       }
 
       return Joiner.on(',').join(descList);
+   }
+
+   /**
+    * Sets the log writer for any segments that are configured
+    * with a <tt>DataSource</tt> for connections.
+    * @param writer The writer.
+    */
+   void setDataSourceLogWriter(PrintWriter writer) throws SQLException {
+      for(ConnectionPoolSegment segment : segments) {
+         if(segment.dbConnection.datasource != null) {
+            segment.dbConnection.datasource.setLogWriter(writer);
+         }
+      }
+   }
+
+   /**
+    * Sets the login timeout for any segments that are configured
+    * with a <tt>DataSource</tt> for connections.
+    * @param seconds The timeout in seconds.
+    */
+   void setDataSourceLoginTimeout(int seconds) throws SQLException {
+      for(ConnectionPoolSegment segment : segments) {
+         if(segment.dbConnection.datasource != null) {
+            segment.dbConnection.datasource.setLoginTimeout(seconds);
+         }
+      }
    }
 }
