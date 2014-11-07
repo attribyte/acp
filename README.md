@@ -8,19 +8,9 @@ Connection pools are composed of segments that are used, activated, and deactiva
 response to connection demand. When active, a segment provides logical connections
 from a fixed-size pool of physical connections.
 
-##Features
+##Documentation
 
-* Pools and segments can be tuned for production environments.
-
-* Tuning can actually be accomplished because everything is measured.
-
-##Non-Features
-
-* Statement caching. Experience shows this rarely makes any difference, adds complexity, and can usually be accomplished
-  in the driver if it is really desired.
-
-*
-
+* [Javadoc](http://www.attribyte.org/projects/acp/javadoc/index.html)
 
 ##Configuration
 
