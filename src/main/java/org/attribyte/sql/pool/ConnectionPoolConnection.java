@@ -21,10 +21,10 @@ import com.google.common.util.concurrent.SimpleTimeLimiter;
 import com.google.common.util.concurrent.UncheckedTimeoutException;
 
 import java.sql.*;
+import java.util.Collections;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
-import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
