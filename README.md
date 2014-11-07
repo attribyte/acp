@@ -6,11 +6,17 @@ The connection pool provides logical database connections to an application from
 a pool of physical connections maintained by the pool.
 Connection pools are composed of segments that are used, activated, and deactivated in sequence in
 response to connection demand. When active, a segment provides logical connections
-from a fixed-size pool of physical connections. Connection pools may be created and configured
-programmatically, from Java properties, or [HOCON](https://github.com/typesafehub/config#using-hocon-the-json-superset)
-format
+from a fixed-size pool of physical connections. It doesn't have a lot of bells and whistles, like
+prepared statement caching. Testing and experience have shown that these make little difference and add
+complexity.
 
 ##Configuration
+
+Connection pools may be created and configured programmatically, from Java properties,
+or [HOCON](https://github.com/typesafehub/config#using-hocon-the-json-superset) format.
+The most common configuration settings are documented below and a
+[sample properties file](https://github.com/attribyte/acp/blob/master/doc/config/sample.properties) is included.
+
 
 <dl>
  <dt>name</dt>
