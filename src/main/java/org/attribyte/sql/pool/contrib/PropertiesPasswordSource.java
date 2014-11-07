@@ -16,9 +16,9 @@
 
 package org.attribyte.sql.pool.contrib;
 
-import java.util.Properties;
-
 import org.attribyte.sql.pool.PasswordSource;
+
+import java.util.Properties;
 
 /**
  * A password source that uses <tt>Properties</tt> to
