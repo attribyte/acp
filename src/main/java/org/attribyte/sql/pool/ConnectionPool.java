@@ -20,6 +20,7 @@ import com.codahale.metrics.Timer;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -641,12 +642,8 @@ public class ConnectionPool implements ConnectionSupplier {
             }
          }
 
-         ConnectionPool pool = new ConnectionPool(name, activeSegments, reserveSegments, saturatedAcquireTimeoutMillis,
+         ConnectionPool pool = new ConnectionPool(name, aka, activeSegments, reserveSegments, saturatedAcquireTimeoutMillis,
                  minActiveSegments, idleCheckIntervalMillis, minSegmentExpansionDelayMillis, logger);
-
-         for(String alias : aka) {
-            pool.aka.add(alias);
-         }
 
          for(ConnectionPoolSegment segment : activeSegments) {
             segment.pool = pool;
@@ -687,6 +684,7 @@ public class ConnectionPool implements ConnectionSupplier {
     * list more than once.
     * </p>
     * @param name The pool name.
+    * @param aka A collection of alias names for this pool.
     * @param activeSegments The list of active segments. Must be > 0.
     * @param reserveSegments The list of reserve segments. May be empty.
     * @param saturatedAcquireTimeoutMillis The timeout before failure when pool is saturated (all connections busy).
@@ -698,6 +696,7 @@ public class ConnectionPool implements ConnectionSupplier {
     * @throws InitializationException if pool could not be created.
     */
    private ConnectionPool(final String name,
+                          final Collection<String> aka,
                           final List<ConnectionPoolSegment> activeSegments,
                           final List<ConnectionPoolSegment> reserveSegments,
                           final long saturatedAcquireTimeoutMillis,
@@ -707,6 +706,7 @@ public class ConnectionPool implements ConnectionSupplier {
                           final Logger logger) throws SQLException, InitializationException {
 
       this.name = name;
+      this.aka = aka != null ? ImmutableSet.copyOf(aka) : ImmutableSet.<String>of();
       this.acquisitions = new Timer();
       this.failedAcquisitions = new Meter();
       this.activeUnmanagedConnections = new Counter();
@@ -1086,8 +1086,8 @@ public class ConnectionPool implements ConnectionSupplier {
     * Gets an unmodifiable set of alias names for this pool.
     * @return The set of names.
     */
-   public Set<String> getAKA() {
-      return Collections.unmodifiableSet(aka);
+   public ImmutableSet<String> getAKA() {
+      return aka;
    }
 
    /**
@@ -1199,7 +1199,7 @@ public class ConnectionPool implements ConnectionSupplier {
    /**
     * A set of alternative names for this pool.
     */
-   private final Set<String> aka = Sets.newHashSet();
+   private final ImmutableSet<String> aka;
 
    /**
     * Minimum number of active segments.
