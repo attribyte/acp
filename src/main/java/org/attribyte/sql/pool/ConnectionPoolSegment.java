@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 Attribyte, LLC 
+ * Copyright 2010,2014 Attribyte, LLC
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); 
  * you may not use this file except in compliance with the License. 
@@ -18,6 +18,7 @@ package org.attribyte.sql.pool;
 import com.codahale.metrics.*;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SimpleTimeLimiter;
 import com.google.common.util.concurrent.UncheckedTimeoutException;
@@ -28,7 +29,7 @@ import org.attribyte.api.Logger;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 
@@ -668,7 +669,7 @@ public class ConnectionPoolSegment {
                   }
                }
             } catch(Throwable t) {
-               logErrorWithTrace("Unexpected exception in reopener", t);
+               logErrorWithTrace("Unexpected exception while reopening", t);
             }
          }
       }
@@ -810,18 +811,14 @@ public class ConnectionPoolSegment {
       this.logger = logger;
 
       this.connections = new ConnectionPoolConnection[size];
-      ArrayList<ConnectionPoolConnection> connections = new ArrayList<ConnectionPoolConnection>(size);
       for(int i = 0; i < size; i++) {
          ConnectionPoolConnection conn = new ConnectionPoolConnection(this, name + ":connection-" + i, dbConnection.testSQL, dbConnection.debug,
                  incompleteTransactionPolicy, openStatementPolicy, forceRealClosePolicy, closeTimeLimitMillis);
          conn.state.set(ConnectionPoolConnection.STATE_AVAILABLE);
-         connections.add(conn);
          this.connections[i] = conn;
       }
 
-      //availableQueue = new ArrayBlockingQueue<ConnectionPoolConnection>(size, false, connections);
       availableQueue = new LinkedTransferQueue<ConnectionPoolConnection>();
-
 
       if(numCloserThreads > 0) {
 
@@ -916,7 +913,7 @@ public class ConnectionPoolSegment {
    /**
     * Opens a connection by obtaining one from the available queue.
     * <p>
-    *   If no connection is immediately, <tt>null</tt> is returned.
+    *   If no connection is immediately available, <tt>null</tt> is returned.
     * </p>
     * @return A connection or <tt>null</tt> if none was immediately available.
     */
@@ -1172,7 +1169,7 @@ public class ConnectionPoolSegment {
       availableQueue.clear();
       reopenExecutor.getQueue().clear();
 
-      ArrayList<ConnectionPoolConnection> connections = new ArrayList<ConnectionPoolConnection>(this.connections.length);
+      List<ConnectionPoolConnection> connections = Lists.newArrayListWithCapacity(this.connections.length);
       for(ConnectionPoolConnection connection : this.connections) {
          connections.add(connection);
          connection.state.set(ConnectionPoolConnection.STATE_AVAILABLE);
