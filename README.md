@@ -2,8 +2,6 @@
 
 ACP is Attribyte's open-source JDBC connection pool. It is designed to support the high throughput, concurrency, tuning,
 monitoring and reporting typically required to support production application servers.
-The connection pool provides logical database connections to an application from
-a pool of physical connections maintained by the pool.
 Connection pools are composed of segments that are used, activated, and deactivated in sequence in
 response to connection demand. When active, a segment provides logical connections
 from a fixed-size pool of physical connections.
