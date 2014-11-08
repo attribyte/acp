@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -38,6 +40,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -944,6 +947,21 @@ public class ConnectionPool implements ConnectionSupplier {
       } finally {
          ctx.stop();
       }
+   }
+
+   /**
+    * Gets a connection future.
+    * See <a href="https://code.google.com/p/guava-libraries/wiki/ListenableFutureExplained">Listenable Future - Explained</a>
+    * @param executor The executor service used to complete the future.
+    * @return The (listenable) connection future.
+    */
+   public final ListenableFuture<Connection> getFutureConnection(final ListeningExecutorService executor) {
+      return executor.submit(new Callable<Connection>() {
+         @Override
+         public Connection call() throws Exception {
+            return getConnection();
+         }
+      });
    }
 
    /**
