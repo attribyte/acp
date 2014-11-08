@@ -8,6 +8,15 @@ Connection pools are composed of segments that are used, activated, and deactiva
 response to connection demand. When active, a segment provides logical connections
 from a fixed-size pool of physical connections.
 
+
+##History
+
+ACP was originally created in 2010. I was motivated to create ACP
+because, at the time, I couldn't find a pool that was instrumented the way I needed, or capable of being carefully tuned to
+supply "backpressure" when flooded with connection requests. (The best candidate, BoneCP, was just being introduced.)
+For several years it reliably provided connections for Gawker Media's publishing system.
+It was migrated from Bitbucket in 2014.
+
 ##Documentation
 
 * [Javadoc](https://www.attribyte.org/projects/acp/javadoc/index.html)
