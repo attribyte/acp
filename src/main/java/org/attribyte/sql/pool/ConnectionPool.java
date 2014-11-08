@@ -41,6 +41,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -975,33 +976,36 @@ public class ConnectionPool implements ConnectionSupplier {
     */
    public final void shutdown() {
 
-      logInfo("Shutting down...");
+      if(isShuttingDown.compareAndSet(false, true)) {
 
-      if(idleSegmentMonitorService != null) {
-         logInfo("Shutting down idle segment monitor service...");
-         idleSegmentMonitorService.shutdownNow();
+         logInfo("Shutting down...");
+
+         if(idleSegmentMonitorService != null) {
+            logInfo("Shutting down idle segment monitor service...");
+            idleSegmentMonitorService.shutdownNow();
+         }
+
+         if(segmentSignalQueue != null) {
+            segmentSignalQueue.clear();
+         }
+
+         if(segmentSignalMonitorThread != null) {
+            logInfo("Shutting down segment signal monitor thread...");
+            segmentSignalMonitorThread.interrupt();
+         }
+
+         logInfo("Shutting down all segments...");
+         for(ConnectionPoolSegment segment : segments) {
+            segment.shutdown();
+         }
+
+         logInfo("Shutting down inactive monitor service...");
+         inactiveMonitorService.shutdownNow();
+
+         Clock.shutdown();
+
+         logInfo("Shut down");
       }
-
-      if(segmentSignalQueue != null) {
-         segmentSignalQueue.clear();
-      }
-
-      if(segmentSignalMonitorThread != null) {
-         logInfo("Shutting down segment signal monitor thread...");
-         segmentSignalMonitorThread.interrupt();
-      }
-
-      logInfo("Shutting down all segments...");
-      for(ConnectionPoolSegment segment : segments) {
-         segment.shutdown();
-      }
-
-      logInfo("Shutting down inactive monitor service...");
-      inactiveMonitorService.shutdownNow();
-
-      Clock.shutdown();
-
-      logInfo("Shut down");
    }
 
    /**
@@ -1329,6 +1333,11 @@ public class ConnectionPool implements ConnectionSupplier {
     * The maximum number of connections.
     */
    final int maxConnections;
+
+   /**
+    * Disallow concurrent shutdown.
+    */
+   private final AtomicBoolean isShuttingDown = new AtomicBoolean(false);
 
    /**
     * Logs an info message.
