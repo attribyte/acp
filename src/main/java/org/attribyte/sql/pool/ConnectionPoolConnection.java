@@ -146,6 +146,11 @@ public class ConnectionPoolConnection implements Connection {
    public enum OpenStatementPolicy {
 
       /**
+       * Don't track open statements.
+       */
+      NONE,
+
+      /**
        * Closes statements silently, only reporting exceptions if they happen during statement close.
        */
       SILENT,
@@ -170,7 +175,9 @@ public class ConnectionPoolConnection implements Connection {
             return defaultPolicy;
          }
 
-         if(str.equalsIgnoreCase("silent")) {
+         if(str.equalsIgnoreCase("none")) {
+            return NONE;
+         } else if(str.equalsIgnoreCase("silent")) {
             return SILENT;
          } else if(str.equalsIgnoreCase("report")) {
             return REPORT;
@@ -750,7 +757,10 @@ public class ConnectionPoolConnection implements Connection {
     * @param stmt The statement.
     */
    private void openStatement(final Statement stmt) {
-      openStatements.add(stmt);
+      switch(openStatementPolicy) {
+         case NONE: break;
+         default: openStatements.add(stmt);
+      }
    }
    
    /* JDBC */
