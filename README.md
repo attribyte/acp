@@ -10,7 +10,7 @@ from a fixed-size pool of physical connections.
 
 ##Documentation
 
-* [Javadoc](http://www.attribyte.org/projects/acp/javadoc/index.html)
+* [Javadoc](https://www.attribyte.org/projects/acp/javadoc/index.html)
 
 ##Configuration
 
