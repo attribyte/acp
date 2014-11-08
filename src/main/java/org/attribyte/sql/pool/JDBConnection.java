@@ -23,7 +23,131 @@ import javax.sql.DataSource;
 /**
  * A JDBC connection.
  */
-class JDBConnection {
+public class JDBConnection {
+
+   /**
+    * Initialize an immutable connection.
+    */
+   public static class Initializer {
+
+      /**
+       * Sets the connection name.
+       * @param name The connection name.
+       * @return A self-reference.
+       */
+      public Initializer setName(final String name) {
+         this.name = name;
+         return this;
+      }
+
+      /**
+       * Sets the user.
+       * @param user The user.
+       * @return A self-reference.
+       */
+      public Initializer setUser(final String user) {
+         this.user = user;
+         return this;
+      }
+
+      /**
+       * Sets the password.
+       * @param password The password.
+       * @return A self-reference.
+       */
+      public Initializer setPassword(final String password) {
+         this.password = password;
+         return this;
+      }
+
+      /**
+       * Sets the connection string.
+       * @param connectionString The connection string.
+       * @return A self-reference.
+       */
+      public Initializer setConnectionString(final String connectionString) {
+         this.connectionString = connectionString;
+         return this;
+      }
+
+      /**
+       * Sets the SQL statement used to test connections.
+       * @param testSQL The test SQL.
+       * @return A self-reference.
+       */
+      public Initializer setTestSQL(final String testSQL) {
+         this.testSQL = testSQL;
+         return this;
+      }
+
+      /**
+       * Sets the connection test interval in milliseconds.
+       * @param testIntervalMillis The test interval in milliseconds.
+       * @return A self-reference.
+       */
+      public Initializer setTestIntervalMillis(final long testIntervalMillis) {
+         this.testIntervalMillis = testIntervalMillis;
+         return this;
+      }
+
+      /**
+       * Sets a timeout use when creating new connections. May be <code>0</code>.
+       * @param createTimeoutMillis The timeout in milliseconds.
+       * @return A self-reference.
+       */
+      public Initializer setCreateTimeoutMillis(final long createTimeoutMillis) {
+         this.createTimeoutMillis = createTimeoutMillis;
+         return this;
+      }
+
+      /**
+       * Sets a <code>DataSource</code> as the source of connections.
+       * @param datasource The datasource.
+       * @return A self-reference.
+       */
+      public Initializer setDatasource(final DataSource datasource) {
+         this.datasource = datasource;
+         return this;
+      }
+
+      /**
+       * Sets debug mode.
+       * <p>
+       * When debug mode is <code>true</code> the call site of connection
+       * acquisitions is recorded and available for exceptions.
+       * </p>
+       * @param debug The deebug mode.
+       * @return A self-reference.
+       */
+      public Initializer setDebug(final boolean debug) {
+         this.debug = debug;
+         return this;
+      }
+
+      /**
+       * Creates an immutable connection from this initialization.
+       * @return The connection.
+       */
+      public JDBConnection createConnection() {
+         if(datasource == null) {
+            return new JDBConnection(name, user, password, connectionString,
+                    createTimeoutMillis, testSQL, testIntervalMillis, debug);
+         } else {
+            return new JDBConnection(name, user, password, datasource,
+                    createTimeoutMillis, testSQL, testIntervalMillis, debug);
+         }
+      }
+
+      String name;
+      String user;
+      String password;
+      String connectionString;
+      String testSQL;
+      long testIntervalMillis = 60L * 1000L;
+      long createTimeoutMillis = 60L * 1000L;
+      DataSource datasource;
+      boolean debug = false;
+   }
 
    /**
     * The SQLSTATE code for connection failure (08006).
