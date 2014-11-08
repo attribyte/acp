@@ -223,6 +223,35 @@ public class ConnectionPoolSegment {
    }
 
    /**
+    * Creates a segment initializer with default values.
+    * @return The segment initializer with default values.
+    */
+   public static Initializer defaultInitializer() {
+      return newInitializer()
+              .setCloseConcurrency(0)
+              .setTestOnLogicalOpen(false)
+              .setTestOnLogicalClose(false)
+              .setIncompleteTransactionOnClosePolicy(ConnectionPoolConnection.IncompleteTransactionPolicy.REPORT)
+              .setOpenStatementOnClosePolicy(ConnectionPoolConnection.OpenStatementPolicy.SILENT)
+              .setForceRealClosePolicy(ConnectionPoolConnection.ForceRealClosePolicy.CONNECTION_WITH_LIMIT)
+              .setActivityTimeoutPolicy(ConnectionPoolConnection.ActivityTimeoutPolicy.LOG)
+              .setCloseTimeLimitMillis(10 * 1000L)
+              .setActiveTimeout(60, TimeUnit.SECONDS)
+              .setConnectionLifetime(15, TimeUnit.MINUTES)
+              .setMaxConcurrentReconnects(2)
+              .setMaxReconnectDelay(1, TimeUnit.MINUTES)
+              .setActiveTimeoutMonitorFrequency(30, TimeUnit.SECONDS);
+   }
+
+   /**
+    * Creates an empty initializer.
+    * @return The initializer.
+    */
+   public static Initializer newInitializer() {
+      return new Initializer();
+   }
+
+   /**
     * Initialize and create a segment.
     */
    public static class Initializer {
