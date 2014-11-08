@@ -38,7 +38,7 @@ public class ConnectionPoolConnection implements Connection {
    /**
     * How are incomplete transactions handled on connection close?
     */
-   enum IncompleteTransactionPolicy {
+   public enum IncompleteTransactionPolicy {
 
       /**
        * Exception is raised.
@@ -85,7 +85,7 @@ public class ConnectionPoolConnection implements Connection {
    /**
     * How are open statements after close handled?
     */
-   enum ForceRealClosePolicy {
+   public enum ForceRealClosePolicy {
 
       /**
        * Closes the connection on force real close.
@@ -143,7 +143,7 @@ public class ConnectionPoolConnection implements Connection {
    /**
     * How are open statements after close handled?
     */
-   enum OpenStatementPolicy {
+   public enum OpenStatementPolicy {
 
       /**
        * Closes statements silently, only reporting exceptions if they happen during statement close.
@@ -183,7 +183,7 @@ public class ConnectionPoolConnection implements Connection {
    /**
     * How are connections that have exceeded the activity timeout handled?
     */
-   enum ActivityTimeoutPolicy {
+   public enum ActivityTimeoutPolicy {
 
       /**
        * Causes the connection to be closed, even though operations may be pending in another thread.
