@@ -62,6 +62,7 @@
                 version="true"
                 use="true"
                 windowtitle="org.attribyte"
+                sourcepath="../shared-base/src/main/java;"
                 >
             <fileset dir="src/main/java" defaultexcludes="yes">
             <include name="**/*.java"/>
