@@ -268,6 +268,11 @@ public class TypesafeConfig {
               ConnectionPoolConnection.ForceRealClosePolicy.fromString(forceRealClosePolicy, ConnectionPoolConnection.ForceRealClosePolicy.CONNECTION)
       );
 
+      String activityTimeoutPolicy = getString(config, "activityTimeoutPolicy");
+      initializer.setActivityTimeoutPolicy(
+              ConnectionPoolConnection.ActivityTimeoutPolicy.fromString(activityTimeoutPolicy, ConnectionPoolConnection.ActivityTimeoutPolicy.LOG)
+      );
+
       initializer.setCloseTimeLimitMillis(getMilliseconds(config, "closeTimeLimit"));
 
       String connectionName = getString(config, "connectionName", "");

@@ -452,6 +452,18 @@ public class ConnectionPoolSegment {
       }
 
       /**
+       * Sets the policy followed by the pool when a connection activity timeout
+       * is reached. This may happen due to developer error (connection never closed),
+       * or due to long-running transactions.
+       * @param activityTimeoutPolicy The policy.
+       * @return A self-reference.
+       */
+      public Initializer setActivityTimeoutPolicy(final ConnectionPoolConnection.ActivityTimeoutPolicy activityTimeoutPolicy) {
+         this.activityTimeoutPolicy = activityTimeoutPolicy;
+         return this;
+      }
+
+      /**
        * Creates a segment after configuration.
        * @return The segment.
        * @throws InitializationException if configuration is invalid.
@@ -472,6 +484,7 @@ public class ConnectionPoolSegment {
                  incompleteTransactionPolicy,
                  openStatementPolicy,
                  forceRealClosePolicy,
+                 activityTimeoutPolicy,
                  passwordSource, logger, closeTimeLimitMillis);
       }
 
@@ -544,6 +557,7 @@ public class ConnectionPoolSegment {
          this.openStatementPolicy = other.openStatementPolicy;
          this.forceRealClosePolicy = other.forceRealClosePolicy;
          this.closeTimeLimitMillis = other.closeTimeLimitMillis;
+         this.activityTimeoutPolicy = other.activityTimeoutPolicy;
       }
 
       private String name;
@@ -568,6 +582,7 @@ public class ConnectionPoolSegment {
               ConnectionPoolConnection.OpenStatementPolicy.SILENT;
       private ConnectionPoolConnection.ForceRealClosePolicy forceRealClosePolicy =
               ConnectionPoolConnection.ForceRealClosePolicy.CONNECTION;
+      private ConnectionPoolConnection.ActivityTimeoutPolicy activityTimeoutPolicy = ConnectionPoolConnection.ActivityTimeoutPolicy.FORCE_CLOSE;
       private long closeTimeLimitMillis = 5000L;
    }
 
@@ -717,27 +732,38 @@ public class ConnectionPoolSegment {
                               conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
                               conn.logicalCloseException = null;
                               reopen(conn);
+                           }
                         }
-                     }
                         break;
                      }
                      case ConnectionPoolConnection.STATE_OPEN:
                         long elapsedTimeMillis = currTimeMillis - conn.openTime;
                         if(elapsedTimeMillis > activeTimeoutMillis) {
-                           //Make sure connection hasn't been closed in the time since we checked.
-                           //Closing out-from-under the app will cause some type of exception.
-                           //Presumably the app will close the connection in a "finally"
-                           //When this happens - closer will do nothing as state will be changed here.
-                           if(conn.state.compareAndSet(ConnectionPoolConnection.STATE_OPEN, ConnectionPoolConnection.STATE_REOPENING)) {
-                              if(conn.getTrace() != null) {
-                                 logError("Open connection, '" + conn.id + "' inactive for " + elapsedTimeMillis + " ms. Trace: " + conn.getTrace());
-                              } else {
-                                 logError("Open connection, '" + conn.id + "' inactive for " + elapsedTimeMillis + " ms.");
+                           switch(activityTimeoutPolicy) {
+                              case LOG:
+                                 if(conn.getTrace() != null) {
+                                    logError("Open connection, '" + conn.id + "' inactive for " + elapsedTimeMillis + " ms. Trace: " + conn.getTrace());
+                                 } else {
+                                    logError("Open connection, '" + conn.id + "' inactive for " + elapsedTimeMillis + " ms.");
+                                 }
+                                 stats.activeTimeoutCount.inc();
+                                 break;
+                              case FORCE_CLOSE:
+                                 //Make sure connection hasn't been closed in the time since we checked.
+                                 //Closing out-from-under the app will cause some type of exception.
+                                 //Presumably the app will close the connection in a "finally"
+                                 //When this happens - closer will do nothing as state will be changed here.
+                                 if(conn.state.compareAndSet(ConnectionPoolConnection.STATE_OPEN, ConnectionPoolConnection.STATE_REOPENING)) {
+                                    if(conn.getTrace() != null) {
+                                       logError("Open connection, '" + conn.id + "' inactive for " + elapsedTimeMillis + " ms. Trace: " + conn.getTrace());
+                                    } else {
+                                       logError("Open connection, '" + conn.id + "' inactive for " + elapsedTimeMillis + " ms.");
+                                    }
+                                    stats.activeTimeoutCount.inc();
+                                    conn.logicalCloseException = null;
+                                    reopen(conn);
+                                 }
                            }
-                              stats.activeTimeoutCount.inc();
-                              conn.logicalCloseException = null;
-                              reopen(conn);
-                        }
                         }
 
                         break;
@@ -769,6 +795,7 @@ public class ConnectionPoolSegment {
     * @param incompleteTransactionPolicy The incomplete transaction policy. Default: IncompleteTransactionPolicy.REPORT
     * @param openStatementPolicy The open statement (on close) policy. Default: OpenStatementPolicy.SILENT
     * @param forceRealClosePolicy The policy when connection is forcibly closed. Default: ForceRealClosePolicy.CONNECTION (Statements are closed by the driver).
+    * @param activityTimeoutPolicy The policy when connection is active too long.
     * @param passwordSource A password source.
     * @param logger A logger.
     */
@@ -790,6 +817,7 @@ public class ConnectionPoolSegment {
            final ConnectionPoolConnection.IncompleteTransactionPolicy incompleteTransactionPolicy,
            final ConnectionPoolConnection.OpenStatementPolicy openStatementPolicy,
            final ConnectionPoolConnection.ForceRealClosePolicy forceRealClosePolicy,
+           final ConnectionPoolConnection.ActivityTimeoutPolicy activityTimeoutPolicy,
            final PasswordSource passwordSource,
            final Logger logger,
            final long closeTimeLimitMillis) {
@@ -817,6 +845,8 @@ public class ConnectionPoolSegment {
          conn.state.set(ConnectionPoolConnection.STATE_AVAILABLE);
          this.connections[i] = conn;
       }
+
+      this.activityTimeoutPolicy = activityTimeoutPolicy;
 
       availableQueue = new LinkedTransferQueue<ConnectionPoolConnection>();
 
@@ -1022,6 +1052,11 @@ public class ConnectionPoolSegment {
     * The frequency at which connections are monitored for inactivity.
     */
    private final long activeTimeoutMonitorFrequencySeconds;
+
+   /**
+    * The activity timeout policy.
+    */
+   private final ConnectionPoolConnection.ActivityTimeoutPolicy activityTimeoutPolicy;
 
    /**
     * Service for connection reopen.

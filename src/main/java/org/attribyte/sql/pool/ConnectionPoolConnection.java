@@ -181,6 +181,50 @@ public class ConnectionPoolConnection implements Connection {
    }
 
    /**
+    * How are connections that have exceeded the activity timeout handled?
+    */
+   enum ActivityTimeoutPolicy {
+
+      /**
+       * Causes the connection to be closed, even though operations may be pending in another thread.
+       * In general, this is probably not thread-safe and deadlock is possible
+       * if connection operations are pending in the application thread.
+       */
+      FORCE_CLOSE,
+
+      /**
+       * Timeout is logged, but the connection remains active
+       * and unavailable until it is returned to the pool.
+       */
+      LOG;
+
+
+      /**
+       * Gets the policy from a string.
+       * <p>
+       * Expect 'force_close' or 'log'.
+       * </p>
+       * @param str The string.
+       * @param defaultPolicy The default policy.
+       * @return The policy, or default if string is invalid or undefined.
+       */
+      static ActivityTimeoutPolicy fromString(final String str, final ActivityTimeoutPolicy defaultPolicy) {
+
+         if(str == null) {
+            return defaultPolicy;
+         }
+
+         if(str.equalsIgnoreCase("force_close") || str.equalsIgnoreCase("forceClose")) {
+            return FORCE_CLOSE;
+         } else if(str.equalsIgnoreCase("log")) {
+            return LOG;
+         } else {
+            return defaultPolicy;
+         }
+      }
+   }
+
+   /**
     * Defines transaction states for this connection.
     */
    enum TransactionState {
