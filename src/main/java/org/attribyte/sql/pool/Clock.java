@@ -45,6 +45,7 @@ final class Clock {
 
    static {
       clockThread.setDaemon(true);
+      clockThread.setName("ACP:LowResClock");
       clockThread.start();
    }
 
