@@ -25,7 +25,10 @@ It was migrated from Bitbucket in 2014. While moving it to Github, a few things 
 * Better metrics.
 
 ##Performance
-Here's the result of a "quick" run of the HikariCP benchmark:
+Here's the result of a "quick" run of the HikariCP benchmark. Not bad. The connection pool has never been a bottleneck
+in any Attribyte system, so I have spent little time trying to optimize ACP. Note that pool instrumentation
+is always enabled (timing, metring of connection acquisitions, etc.) so turning this off might improve the score.
+For me, turning off metrics in a production system to improve performance doesn't make sense.
 <pre><code>
 # Run complete. Total time: 00:09:32
 
