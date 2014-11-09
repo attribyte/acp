@@ -13,7 +13,7 @@ ACP was originally created in 2010. I was motivated to create ACP
 because, at the time, I couldn't find a pool that was instrumented the way I needed, or capable of being carefully tuned to
 supply "backpressure" when flooded with connection requests.
 (The best candidate, [BoneCP](https://github.com/wwadge/bonecp),
-was just being developed. HikariCP(https://github.com/brettwooldridge/HikariCP) is quite new.)
+was just being developed. [HikariCP](https://github.com/brettwooldridge/HikariCP) is quite new.)
 For several years it reliably provided connections for Gawker Media's publishing system.
 It was migrated from Bitbucket in 2014. While moving it to Github, a few things have been tweaked:
 
