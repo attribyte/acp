@@ -30,7 +30,7 @@ in any Attribyte system, so I have spent little time trying to optimize ACP. Not
 is always enabled (timing, metring of connection acquisitions, etc.). Turning this off might improve the score,
 but I've never experienced a situation where (possibly) better connection pool performance was more important than
 pool monitoring.
-<pre><code>
+<pre><code><small>
 # Run complete. Total time: 00:09:32
 
 Benchmark                                 (maxPoolSize)  (pool)   Mode  Samples       Score  Score error   Units
@@ -73,7 +73,7 @@ cache_alignment	: 64
 address sizes	: 36 bits physical, 48 bits virtual
 power management:
 
-</code></pre>
+</small></code></pre>
 
 
 ##Documentation
