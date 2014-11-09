@@ -11,9 +11,18 @@ from a fixed-size pool of physical connections.
 
 ACP was originally created in 2010. I was motivated to create ACP
 because, at the time, I couldn't find a pool that was instrumented the way I needed, or capable of being carefully tuned to
-supply "backpressure" when flooded with connection requests. (The best candidate, BoneCP, was just being introduced.)
+supply "backpressure" when flooded with connection requests.
+(The best candidate, [BoneCP](https://github.com/wwadge/bonecp),
+was just being developed. HikariCP(https://github.com/brettwooldridge/HikariCP) is quite new.)
 For several years it reliably provided connections for Gawker Media's publishing system.
-It was migrated from Bitbucket in 2014.
+It was migrated from Bitbucket in 2014. While moving it to Github, a few things have been tweaked:
+
+* Now requires Java 7 or above (because <code>LinkedTransferQueue</code> is used internally).
+* Added more control of close behavior when "activity timeout" is configured.
+* Added ability to disable statement tracking.
+* Removed XML/DOM-based configuration in favor of HOCON (or <code>Properties</code>).
+* Simplified programmatic configuration.
+* Better metrics.
 
 ##Documentation
 
