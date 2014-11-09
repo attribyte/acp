@@ -232,13 +232,13 @@ public class ConnectionPoolSegment {
               .setTestOnLogicalOpen(false)
               .setTestOnLogicalClose(false)
               .setIncompleteTransactionOnClosePolicy(ConnectionPoolConnection.IncompleteTransactionPolicy.REPORT)
-              .setOpenStatementOnClosePolicy(ConnectionPoolConnection.OpenStatementPolicy.SILENT)
+              .setOpenStatementOnClosePolicy(ConnectionPoolConnection.OpenStatementPolicy.REPORT)
               .setForceRealClosePolicy(ConnectionPoolConnection.ForceRealClosePolicy.CONNECTION_WITH_LIMIT)
               .setActivityTimeoutPolicy(ConnectionPoolConnection.ActivityTimeoutPolicy.LOG)
               .setCloseTimeLimitMillis(10 * 1000L)
               .setActiveTimeout(60, TimeUnit.SECONDS)
               .setConnectionLifetime(15, TimeUnit.MINUTES)
-              .setMaxConcurrentReconnects(2)
+              .setMaxConcurrentReconnects(0)
               .setMaxReconnectDelay(1, TimeUnit.MINUTES)
               .setActiveTimeoutMonitorFrequency(30, TimeUnit.SECONDS);
    }
