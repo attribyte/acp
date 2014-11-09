@@ -238,7 +238,7 @@ public class ConnectionPoolSegment {
               .setCloseTimeLimitMillis(10 * 1000L)
               .setActiveTimeout(60, TimeUnit.SECONDS)
               .setConnectionLifetime(15, TimeUnit.MINUTES)
-              .setMaxConcurrentReconnects(0)
+              .setMaxConcurrentReconnects(2)
               .setMaxReconnectDelay(1, TimeUnit.MINUTES)
               .setActiveTimeoutMonitorFrequency(30, TimeUnit.SECONDS);
    }
