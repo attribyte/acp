@@ -24,6 +24,28 @@ It was migrated from Bitbucket in 2014. While moving it to Github, a few things 
 * Simplified programmatic configuration.
 * Better metrics.
 
+##Performance
+Here's the result of a "quick" run of the HikariCP benchmark:
+<pre><code>
+# Run complete. Total time: 00:09:32
+
+Benchmark                                 (maxPoolSize)  (pool)   Mode  Samples       Score  Score error   Units
+c.z.h.b.ConnectionBench.cycleCnnection               32  hikari  thrpt       16   10928.401      165.642  ops/ms
+c.z.h.b.ConnectionBench.cycleCnnection               32    bone  thrpt       16    5797.225       64.904  ops/ms
+c.z.h.b.ConnectionBench.cycleCnnection               32  tomcat  thrpt       16    1498.525      119.418  ops/ms
+c.z.h.b.ConnectionBench.cycleCnnection               32    c3p0  thrpt       16      82.673        3.397  ops/ms
+c.z.h.b.ConnectionBench.cycleCnnection               32   vibur  thrpt       16    4971.874       70.311  ops/ms
+c.z.h.b.ConnectionBench.cycleCnnection               32     acp  thrpt       16    3189.405      101.285  ops/ms
+c.z.h.b.StatementBench.cycleStatement                32  hikari  thrpt       16   73408.710     4079.799  ops/ms
+c.z.h.b.StatementBench.cycleStatement                32    bone  thrpt        8   11467.816      436.378  ops/ms
+c.z.h.b.StatementBench.cycleStatement                32  tomcat  thrpt       16   25277.900      495.015  ops/ms
+c.z.h.b.StatementBench.cycleStatement                32    c3p0  thrpt       16    6696.266       54.554  ops/ms
+c.z.h.b.StatementBench.cycleStatement                32   vibur  thrpt       16   13799.012      196.682  ops/ms
+c.z.h.b.StatementBench.cycleStatement                32     acp  thrpt       16  237927.492     4201.623  ops/ms
+
+</code></pre>
+
+
 ##Documentation
 
 * [Javadoc](https://www.attribyte.org/projects/acp/javadoc/index.html)
