@@ -232,7 +232,7 @@ public class ConnectionPoolSegment {
               .setTestOnLogicalOpen(false)
               .setTestOnLogicalClose(false)
               .setIncompleteTransactionOnClosePolicy(ConnectionPoolConnection.IncompleteTransactionPolicy.REPORT)
-              .setOpenStatementOnClosePolicy(ConnectionPoolConnection.OpenStatementPolicy.NONE)
+              .setOpenStatementOnClosePolicy(ConnectionPoolConnection.OpenStatementPolicy.SILENT)
               .setForceRealClosePolicy(ConnectionPoolConnection.ForceRealClosePolicy.CONNECTION_WITH_LIMIT)
               .setActivityTimeoutPolicy(ConnectionPoolConnection.ActivityTimeoutPolicy.LOG)
               .setCloseTimeLimitMillis(10 * 1000L)
