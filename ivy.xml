@@ -6,6 +6,7 @@
         <conf name="test" description="Required for tests" extends="runtime"/>
     </configurations>
     <dependencies>
+        <dependency org="org.attribyte" name="attribyte-shared-base" rev="1.0" conf="compile->default"/>
         <dependency org="commons-codec" name="commons-codec" rev="1.4" conf="compile->default"/>
         <dependency org="com.google.guava" name="guava" rev="14.0.1" conf="compile->default"/>
         <dependency org="com.codahale.metrics" name="metrics-core" rev="3.0.2" conf="compile->default"/>
