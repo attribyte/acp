@@ -36,13 +36,15 @@
     </target>
 
     <target name="compile" depends="init" description="Compiles the source">
-        <javac source="${jdkVersion}" includeantruntime="false" srcdir="${src}/main/java" destdir="${build}" debug="on">
+        <javac source="${jdkVersion}" includeantruntime="false" srcdir="${src}/main/java" destdir="${build}"
+               debug="on" deprecation="on">
             <classpath refid="classpath"/>
         </javac>
     </target>
 
     <target name="compile-test" depends="compile" description="Compiles the test source">
-        <javac source="${jdkVersion}" includeantruntime="false" srcdir="${src}/test/java" destdir="${build}" debug="on">
+        <javac source="${jdkVersion}" includeantruntime="false" srcdir="${src}/test/java" destdir="${build}"
+               debug="on" deprecation="on">
             <classpath refid="classpath"/>
         </javac>
     </target>
