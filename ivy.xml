@@ -6,10 +6,9 @@
         <conf name="test" description="Required for tests" extends="runtime"/>
     </configurations>
     <dependencies>
-        <dependency org="org.attribyte" name="attribyte-shared-base" rev="1.0" conf="compile->default"/>
-        <dependency org="commons-codec" name="commons-codec" rev="1.4" conf="compile->default"/>
+        <dependency org="org.attribyte" name="attribyte-shared-base" rev="[1.0,)" conf="compile->default"/>
         <dependency org="com.google.guava" name="guava" rev="[14.0,)" conf="compile->default"/>
-        <dependency org="com.codahale.metrics" name="metrics-core" rev="3.0.2" conf="compile->default"/>
+        <dependency org="com.codahale.metrics" name="metrics-core" rev="[3.0.2,)" conf="compile->default"/>
         <dependency org="com.typesafe" name="config" rev="1.0.2" conf="compile->default"/>
         <dependency org="junit" name="junit" rev="4.8.2" conf="compile->default"/>
     </dependencies>
