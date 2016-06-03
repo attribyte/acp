@@ -15,8 +15,12 @@
 
 package org.attribyte.sql.pool;
 
-import com.codahale.metrics.*;
-import com.codahale.metrics.Timer;
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.MetricSet;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
@@ -30,6 +34,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import org.attribyte.api.InitializationException;
 import org.attribyte.api.Logger;
+import org.attribyte.essem.metrics.Timer;
 import org.attribyte.sql.ConnectionSupplier;
 
 import java.io.File;
@@ -38,9 +43,12 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -481,9 +489,9 @@ public class ConnectionPool implements ConnectionSupplier {
        * @return The list of <tt>Initializers</tt>.
        * @throws InitializationException on invalid configuration.
        */
-      public static final List<ConnectionPool.Initializer> fromProperties(final Properties props,
-                                                                          final PasswordSource passwordSource,
-                                                                          final Logger logger) throws InitializationException {
+      public static final List<Initializer> fromProperties(final Properties props,
+                                                           final PasswordSource passwordSource,
+                                                           final Logger logger) throws InitializationException {
          Config rootConfig = ConfigFactory.parseProperties(props);
          return fromConfig(rootConfig, passwordSource, logger);
       }
@@ -818,7 +826,7 @@ public class ConnectionPool implements ConnectionSupplier {
       }
 
       if(this.segments.length > 1 && this.minActiveSegments != this.segments.length) {
-         segmentSignalQueue = new ArrayBlockingQueue<Object>(1);
+         segmentSignalQueue = new ArrayBlockingQueue<>(1);
          String signalMonitorThreadName = Strings.isNullOrEmpty(name) ? "SignalMonitor" : (name + ":SignalMonitor");
          segmentSignalMonitorThread = new Thread(new SegmentSignalMonitor(), "ACP:" + signalMonitorThreadName);
          segmentSignalMonitorThread.start();
@@ -956,12 +964,7 @@ public class ConnectionPool implements ConnectionSupplier {
     * @return The (listenable) connection future.
     */
    public final ListenableFuture<Connection> getFutureConnection(final ListeningExecutorService executor) {
-      return executor.submit(new Callable<Connection>() {
-         @Override
-         public Connection call() throws Exception {
-            return getConnection();
-         }
-      });
+      return executor.submit(this::getConnection);
    }
 
    /**
@@ -1032,6 +1035,7 @@ public class ConnectionPool implements ConnectionSupplier {
     */
    private final class IdleSegmentMonitor implements Runnable {
 
+      @SuppressWarnings("all")
       public void run() {
          segmentSignalQueue.offer(IDLE_SEGMENT_CHECK_SIGNAL);
       }
@@ -1045,6 +1049,7 @@ public class ConnectionPool implements ConnectionSupplier {
       private long lastActivateTime = System.currentTimeMillis();
       private long lastSegmentIdleStart;
 
+      @SuppressWarnings("all")
       public void run() {
          try {
             while(true) {

@@ -360,7 +360,7 @@ public class TypesafeConfig {
 
 
       String propsRef = getString(config, "properties", "");
-      Config propsConfig = null;
+      Config propsConfig;
       if(propsRef.length() > 0) {
          if(globalPropertyConfig.hasPath(propsRef)) {
             propsConfig = globalPropertyConfig.getObject(propsRef).toConfig();

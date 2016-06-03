@@ -236,7 +236,7 @@ public class JDBConnection {
       }
 
       String description = connectionString;
-      int index = connectionString.indexOf('?');
+      int index = connectionString != null ? connectionString.indexOf('?') : 0;
       if(index > 0) {
          description = connectionString.substring(0, index);
       }

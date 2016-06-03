@@ -181,12 +181,7 @@ public class ConnectionPoolSegment {
       /**
        * A gauge for the fraction of total uptime this segment has been active.
        */
-      private final Gauge<Double> uptimeActiveFraction = new Gauge<Double>() {
-         @Override
-         public Double getValue() {
-            return getUptimeActiveFraction();
-         }
-      };
+      private final Gauge<Double> uptimeActiveFraction = this::getUptimeActiveFraction;
 
       /**
        * Gets the fraction of the total uptime this segment has been active.
@@ -663,8 +658,8 @@ public class ConnectionPoolSegment {
          }
       }
 
+      @SuppressWarnings("all")
       public void run() {
-
          try {
             while(true) {
                ConnectionPoolConnection conn = closeQueue.take();
@@ -877,13 +872,13 @@ public class ConnectionPoolSegment {
 
       this.activityTimeoutPolicy = activityTimeoutPolicy;
 
-      availableQueue = new LinkedTransferQueue<ConnectionPoolConnection>();
+      availableQueue = new LinkedTransferQueue<>();
 
       if(numCloserThreads > 0) {
 
          String closerThreadNameBase = !Strings.isNullOrEmpty(name) ? ("ACP:" + name + ":") : "ACP:";
 
-         closeQueue = new LinkedTransferQueue<ConnectionPoolConnection>();
+         closeQueue = new LinkedTransferQueue<>();
          closerThreads = new Thread[numCloserThreads];
          for(int i = 0; i < closerThreads.length; i++) {
             closerThreads[i] = new Thread(new Closer(), closerThreadNameBase + "Closer-" + i);
