@@ -17,7 +17,7 @@ was just being developed. [HikariCP](https://github.com/brettwooldridge/HikariCP
 For several years it reliably provided connections for Gawker Media's publishing system.
 It was migrated from Bitbucket in 2014. While moving it to Github, a few things have been tweaked:
 
-* Now requires Java 7 or above (because <code>LinkedTransferQueue</code> is used internally).
+* Now requires Java 8.
 * Added more control of close behavior when "activity timeout" is configured.
 * Added ability to disable statement tracking.
 * Removed XML/DOM-based configuration in favor of HOCON (or <code>Properties</code>).
