@@ -78,7 +78,7 @@ power management:
 
 ##Documentation
 
-* [Javadoc](https://www.attribyte.org/projects/acp/javadoc/index.html)
+[![Javadocs](http://javadoc.io/badge/org.attribyte/acp.svg)](http://javadoc.io/doc/org.attribyte/acp)
 
 ##Configuration
 
