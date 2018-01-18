@@ -80,7 +80,7 @@ power management:
 
 [Javadocs](https://attribyte.com/projects/acp/javadoc)
 
-##Configuration
+## Configuration
 
 Connection pools may be created and configured programmatically, from Java properties,
 or [HOCON](https://github.com/typesafehub/config#using-hocon-the-json-superset) format.
