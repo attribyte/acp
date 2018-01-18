@@ -1,4 +1,4 @@
-##About
+## About
 
 ACP is Attribyte's open-source JDBC connection pool. It is designed to support the high throughput, concurrency, tuning,
 monitoring and reporting typically required to support production application servers.
@@ -7,7 +7,7 @@ response to connection demand. When active, a segment provides logical connectio
 from a fixed-size pool of physical connections.
 
 
-##History
+## History
 
 ACP was originally created in 2010. I was motivated to create ACP
 because, at the time, I couldn't find a pool that was instrumented the way I needed, or capable of being carefully tuned to
@@ -24,7 +24,7 @@ It was migrated from Bitbucket in 2014. While moving it to Github, a few things 
 * Simplified programmatic configuration.
 * Better metrics.
 
-##Performance
+## Performance
 Here's the result of a "quick" run of the HikariCP benchmark. Not bad. The connection pool has never been a bottleneck
 in any Attribyte system, so I have spent little time trying to optimize ACP. Note that pool instrumentation
 is always enabled (timing, metring of connection acquisitions, etc.). Turning this off might improve the score,
@@ -76,7 +76,7 @@ power management:
 </small></code></pre>
 
 
-##Documentation
+## Documentation
 
 [![Javadocs](http://javadoc.io/badge/org.attribyte/acp.svg)](http://javadoc.io/doc/org.attribyte/acp)
 
@@ -136,7 +136,7 @@ The most common configuration settings are documented below and a
  <dd>The maximum amount of time to wait between physical connection attempts on failure. Default <tt>30s</tt>.</dd>
 </dl>
 
-##Building
+## Building
 
 The build uses [Apache Ant](http://ant.apache.org/) and
 [Apache Ivy](https://ant.apache.org/ivy/) to resolve dependencies. The following ant tasks
@@ -147,7 +147,7 @@ are available:
 * full-dist - Resolves dependencies, compiles the source, creates a jar in dist/lib, and copies dependencies to dist/extlib
 * clean - Removes all build files and jars.
 
-##Dependencies
+## Dependencies
 
 * [Attribyte shared-base](https://github.com/attribyte/shared-base)
 * [Apache commons-codec](http://commons.apache.org/proper/commons-codec/)
@@ -156,7 +156,7 @@ are available:
 * [Typesafe Config](https://github.com/typesafehub/config)
 
 
-##License
+## License
 
 Copyright 2014 [Attribyte, LLC](https://attribyte.com)
 
