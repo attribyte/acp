@@ -91,7 +91,7 @@ public class JDBConnection {
       }
 
       /**
-       * Sets a timeout use when creating new connections. May be <code>0</code>.
+       * Sets a timeout use when creating new connections. May be {@code 0}.
        * @param createTimeoutMillis The timeout in milliseconds.
        * @return A self-reference.
        */
@@ -101,7 +101,7 @@ public class JDBConnection {
       }
 
       /**
-       * Sets a <code>DataSource</code> as the source of connections.
+       * Sets a {@code DataSource} as the source of connections.
        * @param datasource The datasource.
        * @return A self-reference.
        */
@@ -113,7 +113,7 @@ public class JDBConnection {
       /**
        * Sets debug mode.
        * <p>
-       * When debug mode is <code>true</code> the call site of connection
+       * When debug mode is {@code true} the call site of connection
        * acquisitions is recorded and available for exceptions.
        * </p>
        * @param debug The deebug mode.
@@ -190,11 +190,11 @@ public class JDBConnection {
    }
 
    /**
-    * Creates a connection with a <tt>DataSource</tt>.
+    * Creates a connection with a {@code DataSource}.
     * @param name The connection name.
     * @param user The database user.
     * @param password The database password.
-    * @param datasource The <tt>DataSource</tt>.
+    * @param datasource The {@code DataSource}.
     * @param createTimeoutMillis The connection create timeout.
     * @param testSQL The test SQL.
     * @param testIntervalMillis The test frequency.

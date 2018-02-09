@@ -263,7 +263,10 @@ public class ConnectionPoolConfigTest {
       assertEquals("root", segment.dbConnection.user);
       assertEquals("", segment.dbConnection.password);
       assertEquals("SELECT 1 FROM test", segment.dbConnection.testSQL);
-      assertEquals("jdbc:mysql://127.0.0.1/test?useUnicode=true&characterEncoding=utf8", segment.dbConnection.connectionString);
+      assertNotNull(segment.dbConnection.connectionString);
+      assertTrue(segment.dbConnection.connectionString.contains("useUnicode=true"));
+      assertTrue(segment.dbConnection.connectionString.contains("characterEncoding=utf8"));
+      assertTrue(segment.dbConnection.connectionString.startsWith("jdbc:mysql://127.0.0.1/test?"));
 
       assertEquals(2, segment.getCloserThreadCount());
       assertEquals(3, segment.getMaxConcurrentReconnects());
@@ -285,7 +288,11 @@ public class ConnectionPoolConfigTest {
       assertEquals("root", segment.dbConnection.user);
       assertEquals("", segment.dbConnection.password);
       assertEquals("SELECT 1 FROM test", segment.dbConnection.testSQL);
-      assertEquals("jdbc:mysql://127.0.0.1/test?useUnicode=true&characterEncoding=utf8", segment.dbConnection.connectionString);
+      assertNotNull(segment.dbConnection.connectionString);
+      assertTrue(segment.dbConnection.connectionString.contains("useUnicode=true"));
+      assertTrue(segment.dbConnection.connectionString.contains("characterEncoding=utf8"));
+      assertTrue(segment.dbConnection.connectionString.startsWith("jdbc:mysql://127.0.0.1/test?"));
+
 
       assertEquals(2, segment.getCloserThreadCount());
       assertEquals(3, segment.getMaxConcurrentReconnects());
@@ -306,7 +313,10 @@ public class ConnectionPoolConfigTest {
       assertEquals("root", segment.dbConnection.user);
       assertEquals("", segment.dbConnection.password);
       assertEquals("SELECT 1 FROM test", segment.dbConnection.testSQL);
-      assertEquals("jdbc:mysql://127.0.0.1/test?useUnicode=true&characterEncoding=utf8", segment.dbConnection.connectionString);
+      assertNotNull(segment.dbConnection.connectionString);
+      assertTrue(segment.dbConnection.connectionString.contains("useUnicode=true"));
+      assertTrue(segment.dbConnection.connectionString.contains("characterEncoding=utf8"));
+      assertTrue(segment.dbConnection.connectionString.startsWith("jdbc:mysql://127.0.0.1/test?"));
 
       assertEquals(2, segment.getCloserThreadCount());
       assertEquals(3, segment.getMaxConcurrentReconnects());
@@ -321,7 +331,7 @@ public class ConnectionPoolConfigTest {
       assertEquals(30L, segment.getActiveTimeoutMonitorFrequencySeconds());
       assertEquals("localPool.segment2", segment.name);
 
-      //Rempote pool
+      //Remote pool
 
       pool = pools.get("remotePool");
       assertNotNull(pool);
@@ -335,7 +345,10 @@ public class ConnectionPoolConfigTest {
       assertEquals("root", segment.dbConnection.user);
       assertEquals("", segment.dbConnection.password);
       assertEquals("SELECT 1 FROM test", segment.dbConnection.testSQL);
-      assertEquals("jdbc:mysql://127.0.0.1/test?useUnicode=true&characterEncoding=utf8", segment.dbConnection.connectionString);
+      assertNotNull(segment.dbConnection.connectionString);
+      assertTrue(segment.dbConnection.connectionString.contains("useUnicode=true"));
+      assertTrue(segment.dbConnection.connectionString.contains("characterEncoding=utf8"));
+      assertTrue(segment.dbConnection.connectionString.startsWith("jdbc:mysql://127.0.0.1/test?"));
 
       assertEquals(1, segment.getCloserThreadCount());
       assertEquals(2, segment.getMaxConcurrentReconnects());
@@ -357,7 +370,10 @@ public class ConnectionPoolConfigTest {
       assertEquals("root", segment.dbConnection.user);
       assertEquals("", segment.dbConnection.password);
       assertEquals("SELECT 1 FROM test", segment.dbConnection.testSQL);
-      assertEquals("jdbc:mysql://127.0.0.1/test?useUnicode=true&characterEncoding=utf8", segment.dbConnection.connectionString);
+      assertNotNull(segment.dbConnection.connectionString);
+      assertTrue(segment.dbConnection.connectionString.contains("useUnicode=true"));
+      assertTrue(segment.dbConnection.connectionString.contains("characterEncoding=utf8"));
+      assertTrue(segment.dbConnection.connectionString.startsWith("jdbc:mysql://127.0.0.1/test?"));
 
       assertEquals(1, segment.getCloserThreadCount());
       assertEquals(2, segment.getMaxConcurrentReconnects());

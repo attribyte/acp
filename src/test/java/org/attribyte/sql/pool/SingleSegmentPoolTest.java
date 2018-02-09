@@ -87,7 +87,7 @@ public class SingleSegmentPoolTest {
       int threadCount = 2;
 
       for(int i = 0; i < threadCount; i++) {
-         TestWorker worker = new TestWorker(pool, 100, 10L, true); //Work up to 10ms
+         TestWorker worker = new TestWorker(pool, 10, 100, 10L, true); //Work up to 10ms
          Thread.sleep(1000L);
          testService.execute(worker);
       }
@@ -111,7 +111,7 @@ public class SingleSegmentPoolTest {
       List<TestWorker> workers = new ArrayList<TestWorker>(threadCount);
 
       for(int i = 0; i < threadCount; i++) {
-         TestWorker worker = new TestWorker(pool, 100, 10L, true);
+         TestWorker worker = new TestWorker(pool, 10,100, 10L, true);
          testService.execute(worker);
          workers.add(worker);
       }

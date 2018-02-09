@@ -150,9 +150,9 @@ public class TypesafeConfig {
    /**
     * Initializes a pool from properties.
     * @param poolName The pool name.
-    * @param baseConfig The base configuration. Defaults from <tt>reference.conf</tt> will supply defaults if they make sense.
+    * @param baseConfig The base configuration. Defaults from {@code reference.conf} will supply defaults if they make sense.
     * @param connectionMap A map of configured connections.
-    * @param passwordSource A password source. May be <tt>null</tt>.
+    * @param passwordSource A password source. May be {@code null}.
     * @return The initializer
     * @throws InitializationException if configuration is invalid.
     */

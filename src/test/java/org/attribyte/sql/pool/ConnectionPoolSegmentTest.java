@@ -228,6 +228,8 @@ public class ConnectionPoolSegmentTest {
          Thread.sleep(1000L);
       }
 
+      Thread.sleep(1000L);
+
       assertEquals(ConnectionPoolConnection.STATE_AVAILABLE, poolConn.state.get());
       assertEquals(1, segment.getStats().getActiveTimeoutCount());
       conn.close();

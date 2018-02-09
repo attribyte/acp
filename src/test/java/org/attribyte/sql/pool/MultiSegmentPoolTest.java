@@ -15,6 +15,7 @@
 
 package org.attribyte.sql.pool;
 
+import com.google.common.collect.Lists;
 import org.attribyte.api.ConsoleLogger;
 import org.junit.After;
 import org.junit.Before;
@@ -57,7 +58,7 @@ public class MultiSegmentPoolTest {
          segment0 = segmentInit.setName("segment-0")
                  .setConnection(jdbcConnection)
                  .setAcquireTimeout(10, TimeUnit.MILLISECONDS)
-                 .setActiveTimeout(5, TimeUnit.SECONDS)
+                 .setActiveTimeout(30, TimeUnit.SECONDS)
                  .setActiveTimeoutMonitorFrequency(30, TimeUnit.SECONDS)
                  .setCloseConcurrency(0)
                  .setConnectionLifetime(1, TimeUnit.HOURS)
@@ -66,6 +67,7 @@ public class MultiSegmentPoolTest {
                  .setSize(MAX_THREADS)
                  .setTestOnLogicalClose(false)
                  .setTestOnLogicalOpen(false)
+                 .setActivityTimeoutPolicy(ConnectionPoolConnection.ActivityTimeoutPolicy.FORCE_CLOSE)
                  .createSegment();
 
          segment1 = segmentInit.setName("segment-1")
@@ -82,6 +84,7 @@ public class MultiSegmentPoolTest {
                  .setTestOnLogicalOpen(false)
                  .setIdleTimeBeforeShutdown(2L, TimeUnit.SECONDS)
                  .setMinActiveTime(1L, TimeUnit.SECONDS)
+                 .setActivityTimeoutPolicy(ConnectionPoolConnection.ActivityTimeoutPolicy.FORCE_CLOSE)
                  .createSegment();
 
          segment2 = segmentInit.setName("segment-2")
@@ -98,6 +101,7 @@ public class MultiSegmentPoolTest {
                  .setTestOnLogicalOpen(false)
                  .setIdleTimeBeforeShutdown(2L, TimeUnit.SECONDS)
                  .setMinActiveTime(1L, TimeUnit.SECONDS)
+                 .setActivityTimeoutPolicy(ConnectionPoolConnection.ActivityTimeoutPolicy.FORCE_CLOSE)
                  .createSegment();
 
          ConnectionPool.Initializer poolInit = new ConnectionPool.Initializer();
@@ -171,7 +175,7 @@ public class MultiSegmentPoolTest {
       int threadCount = 6;
 
       for(int i = 0; i < threadCount; i++) {
-         TestWorker worker = new TestWorker(pool, 100, 10L, true); //Work up to 10ms
+         TestWorker worker = new TestWorker(pool, 10, 100, 10L, true); //Work up to 10ms
          Thread.sleep(1000L);
          testService.execute(worker);
       }
@@ -196,10 +200,10 @@ public class MultiSegmentPoolTest {
 
       int threadCount = 15;
 
-      List<TestWorker> workers = new ArrayList<TestWorker>(threadCount);
+      List<TestWorker> workers = Lists.newArrayListWithExpectedSize(threadCount);
 
       for(int i = 0; i < threadCount; i++) {
-         TestWorker worker = new TestWorker(pool, 80, 10L, true);
+         TestWorker worker = new TestWorker(pool, 10, 80, 5L, true);
          testService.execute(worker);
          workers.add(worker);
       }

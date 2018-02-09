@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Attribyte, LLC
+ * Copyright 2011-2018 Attribyte, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  *
  */
 
-
 package org.attribyte.sql.pool.contrib;
 
 import org.attribyte.sql.pool.PasswordSource;
@@ -21,14 +20,12 @@ import org.attribyte.sql.pool.PasswordSource;
 import java.util.Properties;
 
 /**
- * A password source that uses <tt>Properties</tt> to
+ * A password source that uses {@code Properties} to
  * resolve passwords.
- * <p>
  * <ul>
  * <li>[connection name]=[password]</li>
  * <li>[username]@[connection string]=[password]</li>
  * </ul>
- * </p>
  */
 public class PropertiesPasswordSource implements PasswordSource {
 
@@ -47,10 +44,7 @@ public class PropertiesPasswordSource implements PasswordSource {
 
    @Override
    public String getPassword(String connectionString, String username) {
-      StringBuilder buf = new StringBuilder(username);
-      buf.append("@");
-      buf.append(connectionString);
-      return properties.getProperty(buf.toString());
+      return properties.getProperty(username + "@" + connectionString);
    }
 
    private final Properties properties;

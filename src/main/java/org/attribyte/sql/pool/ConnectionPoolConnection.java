@@ -317,7 +317,7 @@ public class ConnectionPoolConnection implements Connection {
       this.openStatementPolicy = openStatementPolicy;
       this.forceRealClosePolicy = forceRealClosePolicy;
       this.openStatements = forceRealClosePolicy == ForceRealClosePolicy.STATEMENTS_AND_CONNECTION ?
-              Collections.newSetFromMap(Maps.<Statement, Boolean>newConcurrentMap()) : Sets.<Statement>newHashSet();
+              Collections.newSetFromMap(Maps.<Statement, Boolean>newConcurrentMap()) : Sets.newHashSet();
       this.debug = debug;
       this.closeTimeLimitMillis = closeTimeLimitMillis;
    }
@@ -439,13 +439,13 @@ public class ConnectionPoolConnection implements Connection {
       }
    }
 
-   @Override
    /**
     * Returns this connection to the segment without change to the real connection.
     * <p>
     *   Ignores close after the first.
     * </p>
     */
+   @Override
    public void close() throws SQLException {
 
       switch(transactionState) {
@@ -533,7 +533,7 @@ public class ConnectionPoolConnection implements Connection {
 
    /**
     * Opens a new (real) database connection <em>if</em>
-    * this connection has been <tt>realClose</tt>ed.
+    * this connection has been {@code realClose}ed.
     * @throws SQLException on open error.
     */
    final void realOpen() throws SQLException {

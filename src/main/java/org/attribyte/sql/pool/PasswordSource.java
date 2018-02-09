@@ -23,7 +23,7 @@ public interface PasswordSource {
    /**
     * Gets the password for a named connection.
     * @param connectionName The connection name.
-    * @return The password or <tt>null</tt> if none.
+    * @return The password or {@code null} if none.
     */
    public String getPassword(String connectionName);
 
@@ -31,7 +31,7 @@ public interface PasswordSource {
     * Gets the password for a connection string and username.
     * @param connectionString The connection string.
     * @param username The username.
-    * @return The password or <tt>null</tt> if none.
+    * @return The password or {@code null} if none.
     */
    public String getPassword(String connectionString, String username);
 }

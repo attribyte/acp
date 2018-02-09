@@ -59,6 +59,8 @@ public class ConnectionPoolSegmentConfigTest {
       props.setProperty("openStatementPolicy", "silent");
       props.setProperty("forceRealClosePolicy", "connectionWithLimit");
       props.setProperty("closeTimeLimit", "10 seconds");
+      props.setProperty("activityTimeoutPolicy", "log");
+
 
       Config config = ConfigFactory.parseProperties((props));
       ConnectionPoolSegment.Initializer initializer = new ConnectionPoolSegment.Initializer();

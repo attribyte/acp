@@ -25,7 +25,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 
 /**
- * A <tt>DataSource</tt> implementation for pools.
+ * A {@code DataSource} implementation for pools.
  */
 public class ConnectionPoolDataSource implements DataSource {
 

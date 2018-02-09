@@ -45,7 +45,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -58,34 +57,32 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Provides logical database connections to an application from
  * a pool of physical connections that are maintained by the pool.
- * <p>
+ *
  * Connection pools are composed of segments that are used, activated and deactivated in sequence in
  * response to connection demand. When active, a segment provides logical connections
  * from a fixed-size pool of physical connections.
- * </p>
- * <p>
+ *
  * Connection pools may be created using XML or property-based configuration, as well as programmatically using an
- * <tt>Initializer</tt>.
- * </p>
+ * {@code Initializer}.
+ *
  * <h3>Configuration Parameters</h3>
- * <p>
  * <dl>
  * <dt>name</dt>
  * <dd>The pool name. Required.</dd>
  * <dt>minActiveSegments</dt>
- * <dd>The minimum number of active segments. Default <tt>1</tt>.</dd>
+ * <dd>The minimum number of active segments. Default {@code 1}.</dd>
  * <dt>saturatedAcquireTimeout</dt>
- * <dd>The maximum amount of time to block waiting for an available connection. Default <tt>0ms</tt>.</dd>
+ * <dd>The maximum amount of time to block waiting for an available connection. Default {@code 0ms}.</dd>
  * <dt>idleCheckInterval</dt>
- * <dd>The time between idle segment checks. Default <tt>60s</tt>.</dd>
+ * <dd>The time between idle segment checks. Default {@code 60s}.</dd>
  * <dt>segments</dt>
- * <dd>The number of segments. Default <tt>1</tt>.</dd>
+ * <dd>The number of segments. Default {@code 1}.</dd>
  * <dt>activeSegments</dt>
- * <dd>The number of segments active on start. Default <tt>1</tt>.</dd>
+ * <dd>The number of segments active on start. Default {@code 1}.</dd>
  * <dt>connection.user</dt>
  * <dd>The database user.</dd>
  * <dt>connection.password</dt>
- * <dd>The database password.<dd>
+ * <dd>The database password.</dd>
  * <dt>connection.url</dt>
  * <dd>The database connection string.</dd>
  * <dt>connection.testSQL</dt>
@@ -93,32 +90,31 @@ import java.util.concurrent.atomic.AtomicLong;
  * <dt>connection.debug</dt>
  * <dd>Is connection debug mode turned on?</dd>
  * <dt>connection.testInterval</dt>
- * <dd>The interval between connection tests. Default <tt>60s</tt>.</dd>
+ * <dd>The interval between connection tests. Default {@code 60s}.</dd>
  * <dt>connection.maxWait</dt>
- * <dd>The maximum amount of time to wait for a database connection before giving up. Default <tt>0s</tt>.</dd>
+ * <dd>The maximum amount of time to wait for a database connection before giving up. Default {@code 0s}.</dd>
  * <dt>segment.size</dt>
  * <dd>The number of connections in each segment. Required.</dd>
  * <dt>segment.closeConcurrency</dt>
- * <dd>The number of background threads processing connection close. If <tt>0</tt>,
- * close blocks in the application thread. Default <tt>0</tt>.</dd>
+ * <dd>The number of background threads processing connection close. If {@code 0},
+ * close blocks in the application thread. Default {@code 0}.</dd>
  * <dt>segment.reconnectConcurrency</dt>
- * <dd>The maximum number of concurrent database reconnects. Default <tt>1</tt>.</dd>
+ * <dd>The maximum number of concurrent database reconnects. Default {@code 1}.</dd>
  * <dt>segment.testOnLogicalOpen</dt>
- * <dd>Should connections be tested when they are acquired? Default <tt>false</tt>.</dd>
+ * <dd>Should connections be tested when they are acquired? Default {@code false}.</dd>
  * <dt>segment.testOnLogicalClose</dt>
- * <dd>Should connections be tested when they are released? Default <tt>false</tt>.</dd>
+ * <dd>Should connections be tested when they are released? Default {@code false}.</dd>
  * <dt>segment.acquireTimeout</dt>
- * <dd>The maximum amount of time to wait for a segment connection to become available. Default <tt>0ms</tt>.</dd>
+ * <dd>The maximum amount of time to wait for a segment connection to become available. Default {@code 0ms}.</dd>
  * <dt>segment.activeTimeout</dt>
- * <dd>The maximum amount of time a logical connection may be open before it is forcibly closed. Default <tt>5m</tt>.</dd>
+ * <dd>The maximum amount of time a logical connection may be open before it is forcibly closed. Default {@code 5m}.</dd>
  * <dt>segment.connectionLifetime</dt>
- * <dd>The maximum amount of time a physical connection may be open. Default <tt>1h</tt>.</dd>
+ * <dd>The maximum amount of time a physical connection may be open. Default {@code 1h}.</dd>
  * <dt>segment.maxReconnectWait</dt>
- * <dd>The maximum amount of time to wait between physical connection attempts on failure. Default <tt>30s</tt>.</dd>
+ * <dd>The maximum amount of time to wait between physical connection attempts on failure. Default {@code 30s}.</dd>
  * </dl>
- * </p>
+ *
  * <h3>Sample Properties Configuration File</h3>
- * <p>
  * <pre>
  * driver.mysql.class=com.mysql.jdbc.Driver
  *
@@ -192,7 +188,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * pool.remotePool.segment1.acquireTimeout=10ms
  * pool.remotePool.segment1.size=10
  * </pre>
- * </p>
  * @author Matt Hamer - Attribyte, LLC
  */
 public class ConnectionPool implements ConnectionSupplier {
@@ -450,11 +445,11 @@ public class ConnectionPool implements ConnectionSupplier {
    public static class Initializer {
 
       /**
-       * Create an <tt>Initializer</tt> for each configured pool.
+       * Create an {@code Initializer} for each configured pool.
        * @param config The configuration.
-       * @param passwordSource The password source. May be <tt>null</tt>.
-       * @param logger The logger. May be <tt>null</tt>.
-       * @return The list of <tt>Initializers</tt>.
+       * @param passwordSource The password source. May be {@code null}.
+       * @param logger The logger. May be {@code null}.
+       * @return The list of {@code Initializers}.
        * @throws InitializationException on invalid configuration.
        */
       public static final List<ConnectionPool.Initializer> fromConfig(final Config config,
@@ -464,15 +459,15 @@ public class ConnectionPool implements ConnectionSupplier {
       }
 
       /**
-       * Parse a config file to create an <tt>Initializer</tt> for each configured pool.
+       * Parse a config file to create an {@code Initializer} for each configured pool.
        * <p>
        * File format is <a href="https://github.com/typesafehub/config/blob/master/HOCON.md">HOCON</a>.
-       * Configuration must appear in the path: <tt>acp</tt>
+       * Configuration must appear in the path: {@code acp}
        * </p>
        * @param configFile The config file.
-       * @param passwordSource The password source. May be <tt>null</tt>.
-       * @param logger The logger. May be <tt>null</tt>.
-       * @return The list of <tt>Initializers</tt>.
+       * @param passwordSource The password source. May be {@code null}.
+       * @param logger The logger. May be {@code null}.
+       * @return The list of {@code Initializers}.
        * @throws InitializationException on invalid file or configuration.
        */
       public static final List<ConnectionPool.Initializer> fromConfigFile(final File configFile,
@@ -483,10 +478,11 @@ public class ConnectionPool implements ConnectionSupplier {
       }
 
       /**
-       * Parse properties to create an <tt>Initializer</tt> for each configured pool.
-       * @param passwordSource The password source. May be <tt>null</tt>.
-       * @param logger The logger. May be <tt>null</tt>.
-       * @return The list of <tt>Initializers</tt>.
+       * Parse properties to create an {@code Initializer} for each configured pool.
+       * @param props The properties.
+       * @param passwordSource The password source. May be {@code null}.
+       * @param logger The logger. May be {@code null}.
+       * @return The list of {@code Initializers}.
        * @throws InitializationException on invalid configuration.
        */
       public static final List<Initializer> fromProperties(final Properties props,
@@ -497,10 +493,11 @@ public class ConnectionPool implements ConnectionSupplier {
       }
 
       /**
-       * Parse properties to create an <tt>Initializer</tt> for each configured pool.
-       * @param passwordSource The password source. May be <tt>null</tt>.
-       * @param logger The logger. May be <tt>null</tt>.
-       * @return The list of <tt>Initializers</tt>.
+       * Parse properties to create an {@code Initializer} for each configured pool.
+       * @param propsFile A properties file.
+       * @param passwordSource The password source. May be {@code null}.
+       * @param logger The logger. May be {@code null}.
+       * @return The list of {@code Initializers}.
        * @throws InitializationException on invalid file or configuration.
        */
       public static final List<ConnectionPool.Initializer> fromPropertiesFile(final File propsFile,
@@ -637,10 +634,10 @@ public class ConnectionPool implements ConnectionSupplier {
       /**
        * Creates a configured pool.
        * @return The pool.
-       * @throws SQLException if pool could not be created.
        * @throws InitializationException if pool was improperly configured.
+       * @throws SQLException if a connection exception is raised during create.
        */
-      public ConnectionPool createPool() throws SQLException, InitializationException {
+      public ConnectionPool createPool() throws InitializationException, SQLException {
 
          for(ConnectionPoolSegment segment : activeSegments) {
             if(segment.pool != null) {
@@ -704,7 +701,6 @@ public class ConnectionPool implements ConnectionSupplier {
     * @param idleCheckIntervalMillis The frequency of idle pool checks.
     * @param minSegmentExpansionDelayMillis The minimum amount of time that must elapse between segment expansion.
     * @param logger The logger.
-    * @throws SQLException if connections could not be created.
     * @throws InitializationException if pool could not be created.
     */
    private ConnectionPool(final String name,
@@ -715,62 +711,43 @@ public class ConnectionPool implements ConnectionSupplier {
                           final int minActiveSegments,
                           final long idleCheckIntervalMillis,
                           final long minSegmentExpansionDelayMillis,
-                          final Logger logger) throws SQLException, InitializationException {
+                          final Logger logger) throws InitializationException {
 
       this.name = name;
-      this.aka = aka != null ? ImmutableSet.copyOf(aka) : ImmutableSet.<String>of();
+      this.aka = aka != null ? ImmutableSet.copyOf(aka) : ImmutableSet.of();
       this.acquisitions = new Timer();
       this.failedAcquisitions = new Meter();
       this.activeUnmanagedConnections = new Counter();
-      this.activeSegmentsGauge = new Gauge<Integer>() {
-         @Override
-         public Integer getValue() {
-            return ConnectionPool.this.activeSegments;
+      this.activeSegmentsGauge = () -> ConnectionPool.this.activeSegments;
+      this.segmentExpansionGauge = ConnectionPool.this.segmentExpansions::get;
+      this.activeConnectionUtilizationGauge = () -> {
+         final int avail = getAvailableConnections();
+         final int active = getActiveConnections();
+         if(active >= avail) {
+            return 1.0f;
+         } else {
+            return (float)(active) / (float)avail;
          }
       };
-      this.segmentExpansionGauge = new Gauge<Long>() {
-         @Override
-         public Long getValue() {
-            return ConnectionPool.this.segmentExpansions.get();
+      this.availableConnectionUtilizationGauge = () -> {
+         final int max = getMaxConnections();
+         final int active = getActiveConnections();
+         if(active >= max) {
+            return 1.0f;
+         } else {
+            return (float)active / (float)max;
          }
       };
-      this.activeConnectionUtilizationGauge = new Gauge<Float>() {
-         @Override
-         public Float getValue() {
-            final int avail = getAvailableConnections();
-            final int active = getActiveConnections();
-            if(active >= avail) {
-               return 1.0f;
-            } else {
-               return (float)(active) / (float)avail;
-            }
-         }
-      };
-      this.availableConnectionUtilizationGauge = new Gauge<Float>() {
-         @Override
-         public Float getValue() {
-            final int max = getMaxConnections();
-            final int active = getActiveConnections();
-            if(active >= max) {
-               return 1.0f;
-            } else {
-               return (float)active / (float)max;
-            }
-         }
-      };
-      this.metrics = new MetricSet() {
-         @Override
-         public Map<String, Metric> getMetrics() {
-            ImmutableMap.Builder<String, Metric> builder = ImmutableMap.builder();
-            builder.put("acquisitions", acquisitions);
-            builder.put("failed-acquisitions", failedAcquisitions);
-            builder.put("active-unmanaged-connections", activeUnmanagedConnections);
-            builder.put("active-segments", activeSegmentsGauge);
-            builder.put("segment-expansions", segmentExpansionGauge);
-            builder.put("active-connections-utilized", activeConnectionUtilizationGauge);
-            builder.put("available-connections-utilized", availableConnectionUtilizationGauge);
-            return builder.build();
-         }
+      this.metrics = () -> {
+         ImmutableMap.Builder<String, Metric> builder = ImmutableMap.builder();
+         builder.put("acquisitions", acquisitions);
+         builder.put("failed-acquisitions", failedAcquisitions);
+         builder.put("active-unmanaged-connections", activeUnmanagedConnections);
+         builder.put("active-segments", activeSegmentsGauge);
+         builder.put("segment-expansions", segmentExpansionGauge);
+         builder.put("active-connections-utilized", activeConnectionUtilizationGauge);
+         builder.put("available-connections-utilized", availableConnectionUtilizationGauge);
+         return builder.build();
       };
 
       this.SATURATED_MESSAGE = "Connection pool '" + name + "' is saturated";
@@ -864,7 +841,7 @@ public class ConnectionPool implements ConnectionSupplier {
     * Gets a new connection that is <em>not managed by the pool</em>.
     * <p>
     * The connection is created directly by the driver/datasource as configured
-    * for the first segment. Caller must call <tt>closeUnmanagedConnection</tt>
+    * for the first segment. Caller must call {@code closeUnmanagedConnection}
     * for this connection when complete.
     * </p>
     * @return The unmanaged connection.
@@ -1368,24 +1345,18 @@ public class ConnectionPool implements ConnectionSupplier {
     */
    private void logInfo(final String message) {
       if(logger != null) {
-         StringBuilder buf = new StringBuilder(name);
-         buf.append(":");
-         buf.append(message);
-         logger.info(buf.toString());
+         logger.info(name + ":" + message);
       }
    }
 
    /**
     * Logs an error message.
     * @param message The message.
-    * @param t A <tt>Throwable</tt>.
+    * @param t A {@code Throwable}.
     */
    private void logError(final String message, final Throwable t) {
       if(logger != null) {
-         StringBuilder buf = new StringBuilder(name);
-         buf.append(":");
-         buf.append(message);
-         logger.error(buf.toString(), t);
+         logger.error(name + ":" + message, t);
       }
    }
 
@@ -1418,7 +1389,7 @@ public class ConnectionPool implements ConnectionSupplier {
 
    /**
     * Sets the log writer for any segments that are configured
-    * with a <tt>DataSource</tt> for connections.
+    * with a {@code DataSource} for connections.
     * @param writer The writer.
     */
    void setDataSourceLogWriter(PrintWriter writer) throws SQLException {
@@ -1431,7 +1402,7 @@ public class ConnectionPool implements ConnectionSupplier {
 
    /**
     * Sets the login timeout for any segments that are configured
-    * with a <tt>DataSource</tt> for connections.
+    * with a {@code DataSource} for connections.
     * @param seconds The timeout in seconds.
     */
    void setDataSourceLoginTimeout(int seconds) throws SQLException {

@@ -93,10 +93,11 @@ public class TestWorker implements Runnable {
    Throwable lastException = null;
 
    TestWorker(final ConnectionPool pool,
+              final long maxConnectionWaitMillis,
               final int numLoops, final long maxWorkDelayMillis, final boolean randomize) {
       this.pool = pool;
       this.segment = null;
-      this.maxConnectionWaitMillis = 0L;
+      this.maxConnectionWaitMillis = maxConnectionWaitMillis;
       this.numLoops = numLoops;
       this.maxWorkDelayMillis = maxWorkDelayMillis;
       this.randomize = randomize;

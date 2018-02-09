@@ -1,5 +1,5 @@
 /*
- * Copyright 2010,2014 Attribyte, LLC
+ * Copyright 2010-2018 Attribyte, LLC
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); 
  * you may not use this file except in compliance with the License. 
@@ -32,6 +32,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 
 /**
@@ -133,13 +134,13 @@ public class ConnectionPoolSegment {
        * @return The cumulative active time.
        */
       public long getCumulativeActiveTimeMillis() {
-         return cumulativeActiveTimeMillis;
+         return cumulativeActiveTime.get();
       }
 
       /**
        * The total time this segment has been active since startup.
        */
-      private volatile long cumulativeActiveTimeMillis = 0L;
+      private AtomicLong cumulativeActiveTime = new AtomicLong(0L);
 
       /**
        * Gets the last time this segment was deactivated.
@@ -189,11 +190,11 @@ public class ConnectionPoolSegment {
        */
       public final double getUptimeActiveFraction() {
 
-         if(active && cumulativeActiveTimeMillis == 0L) { //Active and never deactivated.
+         if(active && cumulativeActiveTime.get() == 0L) { //Active and never deactivated.
             return 1.0;
          } else {
             long totalTimeMillis = System.currentTimeMillis() - createTime;
-            return (double)cumulativeActiveTimeMillis / (double)totalTimeMillis;
+            return cumulativeActiveTime.doubleValue() / (double)totalTimeMillis;
          }
       }
 
@@ -213,7 +214,7 @@ public class ConnectionPoolSegment {
          long currTime = System.currentTimeMillis();
          lastDeactivateTime = currTime;
          long activeTimeMillis = currTime - lastActivatedTime;
-         cumulativeActiveTimeMillis += activeTimeMillis;
+         cumulativeActiveTime.addAndGet(activeTimeMillis);
       }
    }
 
@@ -347,9 +348,9 @@ public class ConnectionPoolSegment {
 
       /**
        * Sets the number of threads handling connection close.
-       * Default is <tt>0</tt>.
+       * Default is {@code 0}.
        * <p>
-       *   If concurrency is <tt>0</tt> (logical) close operations will be performed (and block)
+       *   If concurrency is {@code 0} (logical) close operations will be performed (and block)
        *   in the calling thread. Higher concurrency allows close to return immediately
        *   after queuing the connection, with this number of threads monitoring the queue.
        * </p>
@@ -514,7 +515,7 @@ public class ConnectionPoolSegment {
 
       /**
        * Verify that all required initialization variables are set.
-       * @param withDefaults If <tt>true</tt> defaults will be supplied if possible.
+       * @param withDefaults If {@code true} defaults will be supplied if possible.
        * @throws InitializationException If initialization is invalid.
        */
       public void validate(final boolean withDefaults) throws InitializationException {
@@ -931,12 +932,12 @@ public class ConnectionPoolSegment {
     * Opens a connection by obtaining one from the available queue.
     * <p>
     *   If no connection becomes available before the specified wait time,
-    *   <tt>null</tt> is returned. If specified wait time < 0, waits indefinitely
+    *   {@code null} is returned. If specified wait time < 0, waits indefinitely
     *   for a connection to become available.
     * </p>
     * @param timeout The timeout value.
     * @param timeoutUnit The timeout units.
-    * @return A connection or <tt>null</tt> if none was available in the specified wait time.
+    * @return A connection or {@code null} if none was available in the specified wait time.
     * @throws InterruptedException on thread interruption.
     */
    final ConnectionPoolConnection open(final long timeout, final TimeUnit timeoutUnit) throws InterruptedException {
@@ -967,9 +968,9 @@ public class ConnectionPoolSegment {
    /**
     * Opens a connection by obtaining one from the available queue.
     * <p>
-    *   If no connection is immediately available, <tt>null</tt> is returned.
+    *   If no connection is immediately available, {@code null} is returned.
     * </p>
-    * @return A connection or <tt>null</tt> if none was immediately available.
+    * @return A connection or {@code null} if none was immediately available.
     */
    final ConnectionPoolConnection open() {
       ConnectionPoolConnection conn = availableQueue.poll();
@@ -1063,7 +1064,7 @@ public class ConnectionPoolSegment {
    private final BlockingQueue<ConnectionPoolConnection> availableQueue;
 
    /**
-    * Threads in which <tt>Closers</tt> run.
+    * Threads in which {@code Closers} run.
     */
    private final Thread[] closerThreads;
 
@@ -1455,7 +1456,7 @@ public class ConnectionPoolSegment {
    /**
     * Logs an error message.
     * @param message The message.
-    * @param t A <tt>Throwable</tt> related to the error.
+    * @param t A {@code Throwable} related to the error.
     */
    void logError(final String message, final Throwable t) {
       if(logger != null) {
@@ -1474,7 +1475,7 @@ public class ConnectionPoolSegment {
    /**
     * Logs an error message.
     * @param message The message.
-    * @param t A <tt>Throwable</tt> related to the error.
+    * @param t A {@code Throwable} related to the error.
     */
    void logErrorWithTrace(final String message, final Throwable t) {
       if(logger != null) {
