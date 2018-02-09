@@ -1116,7 +1116,7 @@ public class ConnectionPoolSegment {
    /**
     * A time-limiter - used for obtaining database connections.
     */
-   private static final SimpleTimeLimiter connectionTimeLimiter = new SimpleTimeLimiter();
+   private static final SimpleTimeLimiter connectionTimeLimiter = SimpleTimeLimiter.create(Executors.newCachedThreadPool());
 
    /**
     * Gets the active-for-too-long monitor frequency.
@@ -1193,19 +1193,11 @@ public class ConnectionPoolSegment {
       } else {
 
          try {
-            return connectionTimeLimiter.callWithTimeout(new Callable<Connection>() {
-               public Connection call() throws Exception {
-                  return createRealConnection(0L);
-               }
-            }, timeoutMillis, TimeUnit.MILLISECONDS, true);
+            return connectionTimeLimiter.callWithTimeout(() -> createRealConnection(0L), timeoutMillis, TimeUnit.MILLISECONDS);
          } catch(UncheckedTimeoutException ute) {
             throw new SQLException("Unable to create connection after waiting " + timeoutMillis + " ms");
          } catch(Exception e) {
-            if(e instanceof SQLException) {
-               throw (SQLException)e;
-            } else {
-               throw new SQLException("Unable to create connection: driver/datasource", e);
-            }
+            throw new SQLException("Unable to create connection: driver/datasource", e);
          }
       }
    }

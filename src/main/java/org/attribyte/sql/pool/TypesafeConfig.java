@@ -73,7 +73,7 @@ public class TypesafeConfig {
    static final long getMilliseconds(final Config config, final String name) throws InitializationException {
       final long val;
       try {
-         val = config.hasPath(name) ? config.getMilliseconds(name) : MISSING_LONG;
+         val = config.hasPath(name) ? config.getDuration(name, TimeUnit.MILLISECONDS) : MISSING_LONG;
       } catch(ConfigException ce) {
          throw new InitializationException(ce.getMessage());
       }

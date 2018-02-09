@@ -27,6 +27,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -655,7 +656,7 @@ public class ConnectionPoolConnection implements Connection {
    /**
     * A time-limiter - used for obtaining database connections.
     */
-   private static final SimpleTimeLimiter closeTimeLimiter = new SimpleTimeLimiter();
+   private static final SimpleTimeLimiter closeTimeLimiter = SimpleTimeLimiter.create(Executors.newCachedThreadPool());
 
    /**
     * Closes the underlying DB connection, ignoring any exception raised.
@@ -685,12 +686,10 @@ public class ConnectionPoolConnection implements Connection {
          if(policy != ForceRealClosePolicy.NONE) {
             if(policy == ForceRealClosePolicy.CONNECTION_WITH_LIMIT) {
                try {
-                  closeTimeLimiter.callWithTimeout(new Callable<Boolean>() {
-                     public Boolean call() throws Exception {
-                        conn.close();
-                        return Boolean.TRUE;
-                     }
-                  }, closeTimeLimitMillis, TimeUnit.MILLISECONDS, true);
+                  closeTimeLimiter.callWithTimeout(() -> {
+                     conn.close();
+                     return Boolean.TRUE;
+                  }, closeTimeLimitMillis, TimeUnit.MILLISECONDS);
                } catch(UncheckedTimeoutException ute) {
                   segment.logError("Unable to close connection after waiting " + closeTimeLimitMillis + " ms");
                } catch(Exception e) {
