@@ -1403,6 +1403,25 @@ public class ConnectionPoolSegment {
    }
 
    /**
+    * Shutdown the segment without waiting for any in-progress
+    * operations to complete.
+    * <p>
+    *   <ul>
+    *     <li>Deactivate immediately</li>
+    *     <li>Shutdown the reopen service.</li>
+    *     <li>Interrupts the closer threads, if any.</li>
+    *   </ul>
+    * </p>
+    */
+   final void shutdownNow() {
+      deactivateNow();
+      reopenService.shutdownNow();
+      for(Thread closerThread : closerThreads) {
+         closerThread.interrupt();
+      }
+   }
+
+   /**
     * Logs an info message.
     * @param message The message.
     */

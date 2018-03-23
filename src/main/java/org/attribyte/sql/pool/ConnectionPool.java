@@ -1002,7 +1002,45 @@ public class ConnectionPool implements ConnectionSupplier {
 
          Clock.shutdown();
 
-         logInfo("Shut down");
+         logInfo("Shutdown complete!");
+      }
+   }
+
+   /**
+    * Shutdown the pool without waiting for any in-progress
+    * operations to complete.
+    */
+   public final void shutdownNow() {
+
+      if(isShuttingDown.compareAndSet(false, true)) {
+
+         logInfo("Shutting down...");
+
+         if(idleSegmentMonitorService != null) {
+            logInfo("Shutting down idle segment monitor service...");
+            idleSegmentMonitorService.shutdownNow();
+         }
+
+         if(segmentSignalQueue != null) {
+            segmentSignalQueue.clear();
+         }
+
+         if(segmentSignalMonitorThread != null) {
+            logInfo("Shutting down segment signal monitor thread...");
+            segmentSignalMonitorThread.interrupt();
+         }
+
+         logInfo("Shutting down all segments...");
+         for(ConnectionPoolSegment segment : segments) {
+            segment.shutdownNow();
+         }
+
+         logInfo("Shutting down inactive monitor service...");
+         inactiveMonitorService.shutdownNow();
+
+         Clock.shutdown();
+
+         logInfo("Shutdown complete!");
       }
    }
 
