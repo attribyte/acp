@@ -1396,10 +1396,12 @@ public class ConnectionPoolSegment {
       }
 
       reopenService.shutdownNow();
+      reopenExecutor.shutdown();
 
       for(Thread closerThread : closerThreads) {
          closerThread.interrupt();
       }
+
    }
 
    /**
