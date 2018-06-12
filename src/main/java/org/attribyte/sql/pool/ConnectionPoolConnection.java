@@ -686,9 +686,11 @@ public class ConnectionPoolConnection implements Connection {
          if(policy != ForceRealClosePolicy.NONE) {
             if(policy == ForceRealClosePolicy.CONNECTION_WITH_LIMIT) {
                try {
-                  closeTimeLimiter.callWithTimeout(() -> {
-                     conn.close();
-                     return Boolean.TRUE;
+                  closeTimeLimiter.callWithTimeout(new Callable<Boolean>() {
+                     public Boolean call() throws Exception {
+                        conn.close();
+                        return Boolean.TRUE;
+                     }
                   }, closeTimeLimitMillis, TimeUnit.MILLISECONDS);
                } catch(UncheckedTimeoutException ute) {
                   segment.logError("Unable to close connection after waiting " + closeTimeLimitMillis + " ms");
