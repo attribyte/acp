@@ -81,7 +81,7 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>23.0</version>
+            <version>29.0-jre</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -98,6 +98,7 @@
                 <version>3.7.0</version>
                 <configuration>
                     <showWarnings>true</showWarnings>
+                    <showDeprecation>true</showDeprecation>
                     <compilerArgument>-Xlint:all</compilerArgument>
                     <source>1.8</source>
                     <target>1.8</target>
