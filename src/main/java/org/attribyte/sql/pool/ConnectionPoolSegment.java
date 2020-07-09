@@ -67,6 +67,9 @@ public class ConnectionPoolSegment {
          return metrics;
       }
 
+      /**
+       * The metrics.
+       */
       private final Map<String, Metric> metrics;
 
       /**
@@ -140,7 +143,7 @@ public class ConnectionPoolSegment {
       /**
        * The total time this segment has been active since startup.
        */
-      private AtomicLong cumulativeActiveTime = new AtomicLong(0L);
+      private final AtomicLong cumulativeActiveTime = new AtomicLong(0L);
 
       /**
        * Gets the last time this segment was deactivated.
@@ -1430,10 +1433,7 @@ public class ConnectionPoolSegment {
    void logDebug(final String message) {
       if(logger != null) {
          try {
-            StringBuilder buf = new StringBuilder(name);
-            buf.append(": ");
-            buf.append(message);
-            logger.debug(buf.toString());
+            logger.debug(name + ": " + message);
          } catch(Throwable t) {
             //Ignore - logging should not kill anything
          }
@@ -1447,10 +1447,7 @@ public class ConnectionPoolSegment {
    void logInfo(final String message) {
       if(logger != null) {
          try {
-            StringBuilder buf = new StringBuilder(name);
-            buf.append(": ");
-            buf.append(message);
-            logger.info(buf.toString());            
+            logger.info(name + ": " + message);
          } catch(Throwable t) {
             //Ignore - logging should not kill anything
          }
@@ -1464,10 +1461,7 @@ public class ConnectionPoolSegment {
    void logError(final String message) {
       if(logger != null) {
          try {
-            StringBuilder buf = new StringBuilder(name);
-            buf.append(":");
-            buf.append(message);
-            logger.error(buf.toString());            
+            logger.error(name + ": " + message);
          } catch(Throwable t) {
             //Ignore - logging should not kill anything
          }
@@ -1482,11 +1476,7 @@ public class ConnectionPoolSegment {
    void logError(final String message, final Throwable t) {
       if(logger != null) {
          try {
-            StringBuilder buf = new StringBuilder(name);
-            buf.append(":");
-            buf.append(message);
-            buf.append(":").append(t.getMessage());
-            logger.error(buf.toString());            
+            logger.error(name + ": " + message + ": " + t.getMessage());
          } catch(Throwable t2) {
             //Ignore - logging should not kill anything
          }
@@ -1501,10 +1491,7 @@ public class ConnectionPoolSegment {
    void logErrorWithTrace(final String message, final Throwable t) {
       if(logger != null) {
          try {
-            StringBuilder buf = new StringBuilder(name);
-            buf.append(":");
-            buf.append(message);
-            logger.error(buf.toString(), t);            
+            logger.error(name + ": " + message, t);
          } catch(Throwable t2) {
             //Ignore - logging should not kill anything
          }
