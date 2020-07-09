@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 Attribyte, LLC 
+ * Copyright 2010-2020 Attribyte, LLC
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); 
  * you may not use this file except in compliance with the License. 
@@ -15,17 +15,15 @@
 
 package org.attribyte.sql.pool;
 
-import com.google.common.collect.Maps;
+import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.SimpleTimeLimiter;
 import com.google.common.util.concurrent.UncheckedTimeoutException;
 
 import java.sql.*;
-import java.util.Collections;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -66,19 +64,11 @@ public class ConnectionPoolConnection implements Connection {
        * @return The policy, or default if string is invalid or undefined.
        */
       static IncompleteTransactionPolicy fromString(final String str, final IncompleteTransactionPolicy defaultPolicy) {
-
-         if(str == null) {
-            return defaultPolicy;
-         }
-
-         if(str.equalsIgnoreCase("report")) {
-            return REPORT;
-         } else if(str.equalsIgnoreCase("commit")) {
-            return COMMIT;
-         } else if(str.equalsIgnoreCase("rollback")) {
-            return ROLLBACK;
-         } else {
-            return defaultPolicy;
+         switch(Strings.nullToEmpty(str).toLowerCase().trim()) {
+            case "report": return REPORT;
+            case "commit": return COMMIT;
+            case "rollback": return ROLLBACK;
+            default: return defaultPolicy;
          }
       }
    }
@@ -123,20 +113,21 @@ public class ConnectionPoolConnection implements Connection {
        */
       static ForceRealClosePolicy fromString(final String str, final ForceRealClosePolicy defaultPolicy) {
 
-         if(str == null) {
-            return defaultPolicy;
-         }
-
-         if(str.equalsIgnoreCase("connection")) {
-            return CONNECTION;
-         } else if(str.equalsIgnoreCase("statements_and_connection") || str.equalsIgnoreCase("statementsAndConnection")) {
-            return STATEMENTS_AND_CONNECTION;
-         } else if(str.equalsIgnoreCase("none")) {
-            return NONE;
-         } else if(str.equalsIgnoreCase("connection_with_limit") || str.equalsIgnoreCase("connectionWithLimit")) {
-            return CONNECTION_WITH_LIMIT;
-         } else {
-            return defaultPolicy;
+         switch(Strings.nullToEmpty(str).toLowerCase().trim()) {
+            case "connection":
+               return CONNECTION;
+            case "statements_and_connection":
+            case "statements-and-connection":
+            case "statementsandconnection":
+               return STATEMENTS_AND_CONNECTION;
+            case "none":
+               return NONE;
+            case "connection_with_limit":
+            case "connection-with-limit":
+            case "connectionwithlimit":
+               return CONNECTION_WITH_LIMIT;
+            default:
+               return defaultPolicy;
          }
       }
    }
@@ -171,19 +162,11 @@ public class ConnectionPoolConnection implements Connection {
        * @return The policy, or default if string is invalid or undefined.
        */
       static OpenStatementPolicy fromString(final String str, final OpenStatementPolicy defaultPolicy) {
-
-         if(str == null) {
-            return defaultPolicy;
-         }
-
-         if(str.equalsIgnoreCase("none")) {
-            return NONE;
-         } else if(str.equalsIgnoreCase("silent")) {
-            return SILENT;
-         } else if(str.equalsIgnoreCase("report")) {
-            return REPORT;
-         } else {
-            return defaultPolicy;
+         switch(Strings.nullToEmpty(str).toLowerCase().trim()) {
+            case "none": return NONE;
+            case "silent": return SILENT;
+            case "report": return REPORT;
+            default: return defaultPolicy;
          }
       }
    }
@@ -218,16 +201,15 @@ public class ConnectionPoolConnection implements Connection {
        */
       static ActivityTimeoutPolicy fromString(final String str, final ActivityTimeoutPolicy defaultPolicy) {
 
-         if(str == null) {
-            return defaultPolicy;
-         }
-
-         if(str.equalsIgnoreCase("force_close") || str.equalsIgnoreCase("forceClose")) {
-            return FORCE_CLOSE;
-         } else if(str.equalsIgnoreCase("log")) {
-            return LOG;
-         } else {
-            return defaultPolicy;
+         switch(Strings.nullToEmpty(str).trim().toLowerCase()) {
+            case "force_close":
+            case "force-close":
+            case "forceclose":
+               return FORCE_CLOSE;
+            case "log":
+               return LOG;
+            default:
+               return defaultPolicy;
          }
       }
    }
@@ -289,17 +271,6 @@ public class ConnectionPoolConnection implements Connection {
     * @param id The connection id.
     * @param testSQL SQL used to test the connection.
     * @param debug Should debug data be recorded?
-    */
-   protected ConnectionPoolConnection(final ConnectionPoolSegment segment, final String id, final String testSQL, final boolean debug) {
-      this(segment, id, testSQL, debug, IncompleteTransactionPolicy.REPORT, OpenStatementPolicy.SILENT, ForceRealClosePolicy.CONNECTION, 5000L);
-   }
-
-   /**
-    * Creates a connection.
-    * @param segment The segment this connection is part of.
-    * @param id The connection id.
-    * @param testSQL SQL used to test the connection.
-    * @param debug Should debug data be recorded?
     * @param incompleteTransactionPolicy The incomplete transaction policy.
     * @param openStatementPolicy The open statements policy.
     * @param forceRealClosePolicy The force-real-close policy.
@@ -312,12 +283,12 @@ public class ConnectionPoolConnection implements Connection {
                                       final long closeTimeLimitMillis) {
       this.segment = segment;
       this.id = id;
-      this.testSQL = testSQL;
+      this.testSQL = Strings.emptyToNull(testSQL);
       this.incompleteTransactionPolicy = incompleteTransactionPolicy;
       this.openStatementPolicy = openStatementPolicy;
       this.forceRealClosePolicy = forceRealClosePolicy;
       this.openStatements = forceRealClosePolicy == ForceRealClosePolicy.STATEMENTS_AND_CONNECTION ?
-              Collections.newSetFromMap(Maps.<Statement, Boolean>newConcurrentMap()) : Sets.newHashSet();
+              Sets.newConcurrentHashSet() : Sets.newHashSet();
       this.debug = debug;
       this.closeTimeLimitMillis = closeTimeLimitMillis;
    }
@@ -376,7 +347,7 @@ public class ConnectionPoolConnection implements Connection {
    /**
     * Random number generator.
     */
-   private static final Random rnd = new Random(System.currentTimeMillis());
+   private static final Random rnd = new Random();
 
    /**
     * Time this connection was opened for use.
@@ -417,27 +388,6 @@ public class ConnectionPoolConnection implements Connection {
     * The close time limit if policy is configured.
     */
    private final long closeTimeLimitMillis;
-
-   /**
-    * Gets the current state of this connection as a string.
-    * @return The state as a string.
-    */
-   final String getStateAsString() {
-      switch(state.get()) {
-         case STATE_AVAILABLE:
-            return "AVAILABLE";
-         case STATE_OPEN:
-            return "OPEN";
-         case STATE_CLOSING:
-            return "CLOSING";
-         case STATE_REOPENING:
-            return "REOPENING";
-         case STATE_DISCONNECTED:
-            return "DISCONNECTED";
-         default:
-            return "UNKNOWN";
-      }
-   }
 
    /**
     * Returns this connection to the segment without change to the real connection.
@@ -499,6 +449,18 @@ public class ConnectionPoolConnection implements Connection {
    }
 
    /**
+    * Run the connection test query, if configured.
+    * @throws SQLException The query fails.
+    */
+   private final void maybeRunTest() throws SQLException {
+      if(testSQL != null) {
+         try(Statement stmt = conn.createStatement();
+             ResultSet ignore = stmt.executeQuery(testSQL)) {
+         }
+      }
+   }
+
+   /**
     * Sets the connection state to open and records the
     * open time after performing connection tests.
     * @throws java.sql.SQLException on test error.
@@ -510,25 +472,7 @@ public class ConnectionPoolConnection implements Connection {
       if(debug) {
          lastTrace = Util.getFilteredStack();
       }
-
-      if(testSQL != null && testSQL.length() > 0) {
-         ResultSet rs = null;
-         Statement stmt = null;
-         try {
-            stmt = conn.createStatement();
-            rs = stmt.executeQuery(testSQL);
-         } finally {
-            try {
-               if(rs != null) {
-                  rs.close();
-               }
-            } finally {
-               if(stmt != null) {
-                  stmt.close();
-               }
-            }
-         }
-      }
+      maybeRunTest();
    }
 
    /**
@@ -566,26 +510,12 @@ public class ConnectionPoolConnection implements Connection {
          Util.throwException(logicalCloseException);
       }
 
-      if(withTest) {
+      if(!conn.getAutoCommit()) {
          conn.setAutoCommit(true);
-         if(testSQL != null && testSQL.length() > 0) {
-            ResultSet rs = null;
-            Statement stmt = null;
-            try {
-               stmt = conn.createStatement();
-               rs = stmt.executeQuery(testSQL);
-            } finally {
-               try {
-                  if(rs != null) {
-                     rs.close();
-                  }
-               } finally {
-                  if(stmt != null) {
-                     stmt.close();
-                  }
-               }
-            }
-         }
+      }
+
+      if(withTest) {
+         maybeRunTest();
       }
    }
 
@@ -635,7 +565,6 @@ public class ConnectionPoolConnection implements Connection {
     * @param t The throwable
     */
    private void setLogicalCloseException(final Throwable t) {
-
       if(logicalCloseException == null) {
          logicalCloseException = t;
       } else if(!Util.isRuntimeError(logicalCloseException) && Util.isRuntimeError(t)) {
@@ -686,11 +615,9 @@ public class ConnectionPoolConnection implements Connection {
          if(policy != ForceRealClosePolicy.NONE) {
             if(policy == ForceRealClosePolicy.CONNECTION_WITH_LIMIT) {
                try {
-                  closeTimeLimiter.callWithTimeout(new Callable<Boolean>() {
-                     public Boolean call() throws Exception {
-                        conn.close();
-                        return Boolean.TRUE;
-                     }
+                  closeTimeLimiter.callWithTimeout(() -> {
+                     conn.close();
+                     return Boolean.TRUE;
                   }, closeTimeLimitMillis, TimeUnit.MILLISECONDS);
                } catch(UncheckedTimeoutException ute) {
                   segment.logError("Unable to close connection after waiting " + closeTimeLimitMillis + " ms");
@@ -726,7 +653,7 @@ public class ConnectionPoolConnection implements Connection {
          case STARTED:
             //At least one statement was created with auto-commit false & no commit/rollback.
             //Follow the default policy.
-            if(conn != null && openStatements.size() > 0) {
+            if(conn != null && !openStatements.isEmpty()) {
                switch(incompleteTransactionPolicy) {
                   case REPORT:
                      throw new SQLException("Statement closed with incomplete transaction", JDBConnection.SQLSTATE_INVALID_TRANSACTION_STATE);
@@ -758,9 +685,8 @@ public class ConnectionPoolConnection implements Connection {
     * @param stmt The statement.
     */
    private void openStatement(final Statement stmt) {
-      switch(openStatementPolicy) {
-         case NONE: break;
-         default: openStatements.add(stmt);
+      if(openStatementPolicy != OpenStatementPolicy.NONE) {
+         openStatements.add(stmt);
       }
    }
    
@@ -865,7 +791,7 @@ public class ConnectionPoolConnection implements Connection {
       transactionState = TransactionState.COMPLETED;
    }
 
-   public boolean isClosed() throws SQLException {
+   public boolean isClosed() {
       return transactionState == TransactionState.CLOSED;
    }
 
