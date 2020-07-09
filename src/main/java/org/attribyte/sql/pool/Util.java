@@ -70,7 +70,7 @@ final class Util {
     * @return Is the <tt>Throwable</tt> a runtime error?
     */
    static final boolean isRuntimeError(final Throwable t) {
-      return t != null && (t instanceof Error || t instanceof RuntimeException);
+      return (t instanceof Error || t instanceof RuntimeException);
    }
 
    /**
