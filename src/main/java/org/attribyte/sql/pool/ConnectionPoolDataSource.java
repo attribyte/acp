@@ -29,7 +29,6 @@ import java.sql.SQLFeatureNotSupportedException;
  */
 public class ConnectionPoolDataSource implements DataSource {
 
-   private volatile boolean isShutdown;
    private final ConnectionPool pool;
    private PrintWriter sourceLogWriter = null;
    private int sourceTimeoutSeconds;
