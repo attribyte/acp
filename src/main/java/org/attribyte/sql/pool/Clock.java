@@ -46,9 +46,8 @@ final class Clock {
    );
 
    static {
-      clockService.scheduleAtFixedRate(() -> {
-         currTimeMillis = System.currentTimeMillis();
-      }, 0, RESOLUTION_MILLIS, TimeUnit.MILLISECONDS);
+      clockService.scheduleAtFixedRate(() -> currTimeMillis = System.currentTimeMillis(),
+              0, RESOLUTION_MILLIS, TimeUnit.MILLISECONDS);
    }
 
    /**
