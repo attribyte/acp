@@ -15,6 +15,7 @@
 
 package org.attribyte.sql.pool;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -112,6 +113,16 @@ final class Util {
       return buf.toString();
    }
 
+
+   /**
+    * Creates a thread factory builder.
+    * @param componentName The (required) component name.
+    * @return The thread factory.
+    */
+   static ThreadFactory createThreadFactoryBuilder(final String componentName) {
+      return createThreadFactoryBuilder(null, componentName);
+   }
+
    /**
     * Creates a thread factory builder.
     * @param baseName The (optional) base name.
@@ -119,7 +130,7 @@ final class Util {
     * @return The thread factory.
     */
    static ThreadFactory createThreadFactoryBuilder(final String baseName, final String componentName) {
-
+      Preconditions.checkNotNull(Strings.emptyToNull(componentName));
       StringBuilder buf = new StringBuilder("ACP:");
       if(!Strings.isNullOrEmpty(baseName)) {
          buf.append(baseName).append(":").append(componentName);

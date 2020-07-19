@@ -808,7 +808,8 @@ public class ConnectionPool implements ConnectionSupplier {
          segmentSignalMonitorThread = new Thread(new SegmentSignalMonitor(), "ACP:" + signalMonitorThreadName);
          segmentSignalMonitorThread.start();
          idleSegmentMonitorService = MoreExecutors.getExitingScheduledExecutorService(
-                 new ScheduledThreadPoolExecutor(1, Util.createThreadFactoryBuilder(name, "IdleMonitor"))
+                 new ScheduledThreadPoolExecutor(1,
+                         Util.createThreadFactoryBuilder(name, "IdleMonitor"))
          );
          idleSegmentMonitorService.scheduleWithFixedDelay(new IdleSegmentMonitor(), idleCheckIntervalMillis, idleCheckIntervalMillis, TimeUnit.MILLISECONDS);
       } else {
@@ -818,7 +819,8 @@ public class ConnectionPool implements ConnectionSupplier {
       }
 
       inactiveMonitorService = MoreExecutors.getExitingScheduledExecutorService(
-              new ScheduledThreadPoolExecutor(1, Util.createThreadFactoryBuilder(name, "InactiveMonitor"))
+              new ScheduledThreadPoolExecutor(1,
+                      Util.createThreadFactoryBuilder(name, "InactiveMonitor"))
       );
 
       this.connectionDescription = buildConnectionDescription();
