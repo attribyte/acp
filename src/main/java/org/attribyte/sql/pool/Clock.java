@@ -15,6 +15,11 @@
 
 package org.attribyte.sql.pool;
 
+import com.google.common.util.concurrent.MoreExecutors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
 /**
  * A clock with 30 second resolution.
  * @author Matt Hamer - Attribyte, LLC
@@ -22,42 +27,34 @@ package org.attribyte.sql.pool;
 final class Clock {
 
    /**
-    * The clock resolution in milliseconds (30,000).
+    * The clock resolution in milliseconds ({@value}).
     */
    static final long RESOLUTION_MILLIS = 30000L;
-
-   /**
-    * Updates the clock every 30 seconds.
-    */
-   private static final Thread clockThread = new Thread(
-           new Runnable() {
-              public void run() {
-                 while(true) {
-                    try {
-                       currTimeMillis = System.currentTimeMillis();
-                       Thread.sleep(RESOLUTION_MILLIS);
-                    } catch(InterruptedException ie) {
-                       return;
-                    }
-                 }
-              }
-           });
-
-   static {
-      clockThread.setDaemon(true);
-      clockThread.setName("ACP:LowResClock");
-      clockThread.start();
-   }
-
-   /**
-    * Shuts down the clock thread.
-    */
-   static void shutdown() {
-      clockThread.interrupt();
-   }
 
    /**
     * The current time, +- 30s.
     */
    volatile static long currTimeMillis = System.currentTimeMillis();
+
+   /**
+    * Periodically update the clock time.
+    */
+   static final ScheduledExecutorService clockService =
+           MoreExecutors.getExitingScheduledExecutorService(
+           new ScheduledThreadPoolExecutor(1,
+                   Util.createThreadFactoryBuilder("LowResClock"))
+   );
+
+   static {
+      clockService.scheduleAtFixedRate(() -> {
+         currTimeMillis = System.currentTimeMillis();
+      }, 0, RESOLUTION_MILLIS, TimeUnit.MILLISECONDS);
+   }
+
+   /**
+    * Shuts down the clock executor immediately.
+    */
+   static void shutdown() {
+      clockService.shutdownNow();
+   }
 }
