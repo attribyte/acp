@@ -17,10 +17,18 @@ package org.attribyte.sql.pool;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SimpleTimeLimiter;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.sql.SQLException;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Various utility methods and constants.
@@ -140,5 +148,22 @@ final class Util {
 
       buf.append("-Thread-%d");
       return new ThreadFactoryBuilder().setNameFormat(buf.toString()).build();
+   }
+
+   /**
+    * The executor for time limiters.
+    */
+   static final ExecutorService timeLimiterExecutor =
+           MoreExecutors.getExitingExecutorService(new ThreadPoolExecutor(1, 256,
+                   60L, TimeUnit.SECONDS,
+                   new SynchronousQueue<>(), createThreadFactoryBuilder("SimpleTimeLimiter")));
+
+   /**
+    * The shared time limiter.
+    */
+   static final SimpleTimeLimiter timeLimiter = SimpleTimeLimiter.create(timeLimiterExecutor);
+
+   static {
+      Runtime.getRuntime().addShutdownHook(new Thread(timeLimiterExecutor::shutdownNow));
    }
 }

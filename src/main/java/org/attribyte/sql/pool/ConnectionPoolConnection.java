@@ -15,6 +15,7 @@
 
 package org.attribyte.sql.pool;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.SimpleTimeLimiter;
@@ -455,7 +456,8 @@ public class ConnectionPoolConnection implements Connection {
    private final void maybeRunTest() throws SQLException {
       if(testSQL != null) {
          try(Statement stmt = conn.createStatement();
-             ResultSet ignore = stmt.executeQuery(testSQL)) {
+             ResultSet rs = stmt.executeQuery(testSQL)) {
+            Preconditions.checkArgument(rs.next());
          }
       }
    }
@@ -583,9 +585,17 @@ public class ConnectionPoolConnection implements Connection {
    }
 
    /**
+    * Terminate this connection.
+    */
+   final void terminate() {
+      conn = null;
+      openStatements.clear();
+   }
+
+   /**
     * A time-limiter - used for obtaining database connections.
     */
-   private static final SimpleTimeLimiter closeTimeLimiter = SimpleTimeLimiter.create(Executors.newCachedThreadPool());
+   private static final SimpleTimeLimiter closeTimeLimiter = Util.timeLimiter;
 
    /**
     * Closes the underlying DB connection, ignoring any exception raised.
@@ -630,7 +640,7 @@ public class ConnectionPoolConnection implements Connection {
                } catch(Exception e) {
                   segment.logError("Connection close error", e);
                }
-            }
+           }
          }
 
          conn = null;

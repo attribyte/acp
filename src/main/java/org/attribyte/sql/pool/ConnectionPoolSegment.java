@@ -1120,7 +1120,7 @@ public class ConnectionPoolSegment {
    /**
     * A time-limiter - used for obtaining database connections.
     */
-   private static final SimpleTimeLimiter connectionTimeLimiter = SimpleTimeLimiter.create(Executors.newCachedThreadPool());
+   private static final SimpleTimeLimiter connectionTimeLimiter = Util.timeLimiter;
 
    /**
     * Gets the active-for-too-long monitor frequency.
@@ -1182,9 +1182,7 @@ public class ConnectionPoolSegment {
    private Connection createRealConnection(final long timeoutMillis) throws SQLException {
 
       if(timeoutMillis < 1L) {
-
          String usePassword = getPassword();
-
          Connection conn = dbConnection.datasource == null ?
                  DriverManager.getConnection(dbConnection.connectionString, dbConnection.user, usePassword) :
                  dbConnection.datasource.getConnection(dbConnection.user, usePassword);
@@ -1258,7 +1256,6 @@ public class ConnectionPoolSegment {
     * @throws InterruptedException if interrupted.
     */
    final boolean deactivate() throws InterruptedException {
-
       isActive = false; //Stop any reopen operations
       stats.deactivate();
 
@@ -1278,7 +1275,6 @@ public class ConnectionPoolSegment {
 
       outer:
       while(elapsedWaitMillis < maxWaitMillis) {
-
          for(ConnectionPoolConnection conn : connections) {
             int state = conn.state.get();
             if(state == ConnectionPoolConnection.STATE_OPEN ||
@@ -1289,6 +1285,7 @@ public class ConnectionPoolSegment {
             } else {
                conn.forceRealClose();
                conn.state.set(ConnectionPoolConnection.STATE_DISCONNECTED);
+               conn.terminate();
             }
          }
 
@@ -1309,6 +1306,7 @@ public class ConnectionPoolSegment {
       for(ConnectionPoolConnection conn : connections) {
          conn.forceRealClose();
          conn.state.set(ConnectionPoolConnection.STATE_DISCONNECTED);
+         conn.terminate();
       }
    }
 
