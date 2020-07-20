@@ -1193,7 +1193,6 @@ public class ConnectionPoolSegment {
          }
 
       } else {
-
          try {
             return connectionTimeLimiter.callWithTimeout(() -> createRealConnection(0L), timeoutMillis, TimeUnit.MILLISECONDS);
          } catch(UncheckedTimeoutException ute) {

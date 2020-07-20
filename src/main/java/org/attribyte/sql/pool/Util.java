@@ -162,8 +162,4 @@ final class Util {
     * The shared time limiter.
     */
    static final SimpleTimeLimiter timeLimiter = SimpleTimeLimiter.create(timeLimiterExecutor);
-
-   static {
-      Runtime.getRuntime().addShutdownHook(new Thread(timeLimiterExecutor::shutdownNow));
-   }
 }
