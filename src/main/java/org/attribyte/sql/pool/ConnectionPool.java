@@ -1004,6 +1004,9 @@ public class ConnectionPool implements ConnectionSupplier {
 
          Clock.shutdown();
 
+         logInfo("Shutting down the time limiter...");
+         Util.shutdownTimeLimiter();
+
          logInfo("Shutdown complete!");
       }
    }
@@ -1042,6 +1045,11 @@ public class ConnectionPool implements ConnectionSupplier {
 
          Clock.shutdown();
 
+         logInfo("Shutting down the time limiter...");
+         List<Runnable> waiting = Util.shutdownTimeLimiterNow();
+         if(!waiting.isEmpty()) {
+            logInfo(String.format("Time limiter had %d waiting tasks!", waiting.size()));
+         }
          logInfo("Shutdown complete!");
       }
    }
