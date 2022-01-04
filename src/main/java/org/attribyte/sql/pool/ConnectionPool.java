@@ -504,13 +504,9 @@ public class ConnectionPool implements ConnectionSupplier {
                                                                               final PasswordSource passwordSource,
                                                                               final Logger logger) throws InitializationException {
          Properties props = new Properties();
-         FileInputStream fis = null;
          try {
-            try {
-               fis = new FileInputStream(propsFile);
+            try(FileInputStream fis = new FileInputStream(propsFile)) {
                props.load(fis);
-            } finally {
-               if(fis != null) fis.close();
             }
          } catch(IOException ioe) {
             throw new InitializationException("Problem loading properties", ioe);
@@ -635,9 +631,8 @@ public class ConnectionPool implements ConnectionSupplier {
        * Creates a configured pool.
        * @return The pool.
        * @throws InitializationException if pool was improperly configured.
-       * @throws SQLException if a connection exception is raised during create.
        */
-      public ConnectionPool createPool() throws InitializationException, SQLException {
+      public ConnectionPool createPool() throws InitializationException {
 
          for(ConnectionPoolSegment segment : activeSegments) {
             if(segment.pool != null) {
@@ -665,6 +660,48 @@ public class ConnectionPool implements ConnectionSupplier {
          }
 
          return pool;
+      }
+
+      /**
+       * @return The name.
+       */
+      public String getName() {
+         return name;
+      }
+
+      /**
+       * @return The set of alias names.
+       */
+      public Set<String> getAka() {
+         return ImmutableSet.copyOf(aka);
+      }
+
+      /**
+       * @return The minimum number of active segments.
+       */
+      public int getMinActiveSegments() {
+         return minActiveSegments;
+      }
+
+      /**
+       * @return The minimum expansion delay in milliseconds.
+       */
+      public long getMinSegmentExpansionDelayMillis() {
+         return minSegmentExpansionDelayMillis;
+      }
+
+      /**
+       * @return The saturated acquire timeout in milliseconds.
+       */
+      public long getSaturatedAcquireTimeoutMillis() {
+         return saturatedAcquireTimeoutMillis;
+      }
+
+      /**
+       * @return The idle check interval in milliseconds.
+       */
+      public long getIdleCheckIntervalMillis() {
+         return idleCheckIntervalMillis;
       }
 
       String name;

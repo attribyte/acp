@@ -424,9 +424,9 @@ public class TypesafeConfig {
       }
 
       if(connectionString.indexOf('?') > 0) {
-         return connectionString + "&" + buf.toString();
+         return connectionString + "&" + buf;
       } else {
-         return connectionString + "?" + buf.toString();
+         return connectionString + "?" + buf;
       }
    }
 }

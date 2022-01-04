@@ -254,7 +254,7 @@ public class JDBConnection {
       if(connectionString != null) {
          buf.append(user).append("@").append(connectionString);
       } else if(datasource != null) {
-         buf.append("DataSource: ").append(datasource.toString());
+         buf.append("DataSource: ").append(datasource);
       }
 
       if(testSQL != null) {
