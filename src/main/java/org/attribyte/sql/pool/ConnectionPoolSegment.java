@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 Attribyte, LLC
+ * Copyright 2010-2026 Attribyte Labs, LLC
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); 
  * you may not use this file except in compliance with the License. 
@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *    A segment contains a fixed number of physical database connections in one of the following states: available, open,
  *    closing, reopening, or disconnected.
  * </p>
- * @author Matt Hamer - Attribyte, LLC
+ * @author Matt Hamer - Attribyte Labs, LLC
  */
 public class ConnectionPoolSegment {
 
@@ -251,7 +251,7 @@ public class ConnectionPoolSegment {
    }
 
    /**
-    * Initialize and create a segment.
+    * Initializes and creates a connection pool segment.
     */
    public static class Initializer {
 
@@ -342,7 +342,7 @@ public class ConnectionPoolSegment {
 
       /**
        * Does this initializer have a connection set?
-       * @return Is the conneciton set?
+       * @return Is the connection set?
        */
       public boolean hasConnection() {
          return this.jdbcConnection != null;
@@ -945,26 +945,40 @@ public class ConnectionPoolSegment {
     */
    final ConnectionPoolConnection open(final long timeout, final TimeUnit timeoutUnit) throws InterruptedException {
 
-      ConnectionPoolConnection conn = timeout >= 0 ? availableQueue.poll(timeout, timeoutUnit) : availableQueue.take();
+      final long deadlineNanos = timeout >= 0 ? System.nanoTime() + timeoutUnit.toNanos(timeout) : 0;
 
-      if(conn != null) {
+      while(true) {
+         ConnectionPoolConnection conn;
+         if(timeout >= 0) {
+            long remainingNanos = deadlineNanos - System.nanoTime();
+            if(remainingNanos <= 0) {
+               return null;
+            }
+            conn = availableQueue.poll(remainingNanos, TimeUnit.NANOSECONDS);
+         } else {
+            conn = availableQueue.take();
+         }
+
+         if(conn == null) {
+            return null;
+         }
+
          if(!testOnLogicalOpen) {
             conn.logicalOpen();
             conn.state.set(ConnectionPoolConnection.STATE_OPEN);
-         } else {
-            try {
-               conn.logicalOpenWithTest();
-               conn.state.set(ConnectionPoolConnection.STATE_OPEN);
-            } catch(SQLException se) {
-               conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
-               stats.connectionErrors.mark();
-               reopen(conn);
-               return open(); //Attempt to open another connection.
-            }
+            return conn;
+         }
+
+         try {
+            conn.logicalOpenWithTest();
+            conn.state.set(ConnectionPoolConnection.STATE_OPEN);
+            return conn;
+         } catch(SQLException se) {
+            conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
+            stats.connectionErrors.mark();
+            reopen(conn);
          }
       }
-
-      return conn;
    }
 
 
@@ -976,30 +990,34 @@ public class ConnectionPoolSegment {
     * @return A connection or {@code null} if none was immediately available.
     */
    final ConnectionPoolConnection open() {
-      ConnectionPoolConnection conn = availableQueue.poll();
-      if(conn != null) {
+      while(true) {
+         ConnectionPoolConnection conn = availableQueue.poll();
+         if(conn == null) {
+            return null;
+         }
+
          if(!testOnLogicalOpen) {
             conn.logicalOpen();
             conn.state.set(ConnectionPoolConnection.STATE_OPEN);
-         } else {
-            try {
-               conn.logicalOpenWithTest();
-               conn.state.set(ConnectionPoolConnection.STATE_OPEN);
-            } catch(SQLException se) {
-               conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
-               stats.connectionErrors.mark();
-               reopen(conn);
-               return open(); //Attempt to open another connection
-            }
+            return conn;
+         }
+
+         try {
+            conn.logicalOpenWithTest();
+            conn.state.set(ConnectionPoolConnection.STATE_OPEN);
+            return conn;
+         } catch(SQLException se) {
+            conn.state.set(ConnectionPoolConnection.STATE_REOPENING);
+            stats.connectionErrors.mark();
+            reopen(conn);
          }
       }
-      return conn;
    }
 
    /**
-    * The time the pool was created.
+    * The time the segment was created.
     */
-   private static final long createTime = System.currentTimeMillis();
+   private final long createTime = System.currentTimeMillis();
 
    /**
     * Timeout value for connection wait when all pool connections are in-use.

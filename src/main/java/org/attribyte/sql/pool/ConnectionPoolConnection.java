@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2020 Attribyte, LLC
+ * Copyright 2010-2026 Attribyte Labs, LLC
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); 
  * you may not use this file except in compliance with the License. 
@@ -26,12 +26,17 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Wraps a SQL connection.
+ * A logical database connection returned to applications from a {@link ConnectionPool}.
+ * <p>
+ *    Wraps a physical {@code Connection} managed by a {@link ConnectionPoolSegment}.
+ *    When the application calls {@link #close()}, the physical connection is returned
+ *    to the pool rather than being closed, and the connection state (auto-commit, read-only)
+ *    is reset for the next user.
+ * </p>
  */
 public class ConnectionPoolConnection implements Connection {
 
@@ -75,7 +80,8 @@ public class ConnectionPoolConnection implements Connection {
    }
 
    /**
-    * How are open statements after close handled?
+    * The policy followed when a connection is forcibly closed by the pool
+    * (e.g. when the activity timeout is reached or the connection lifetime expires).
     */
    public enum ForceRealClosePolicy {
 
@@ -516,6 +522,10 @@ public class ConnectionPoolConnection implements Connection {
          conn.setAutoCommit(true);
       }
 
+      if(conn.isReadOnly()) {
+         conn.setReadOnly(false);
+      }
+
       if(withTest) {
          maybeRunTest();
       }
@@ -702,6 +712,7 @@ public class ConnectionPoolConnection implements Connection {
    
    /* JDBC */
 
+   @Override
    public Statement createStatement() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -717,6 +728,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public PreparedStatement prepareStatement(String sql) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -732,6 +744,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public CallableStatement prepareCall(String sql) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -747,6 +760,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public String nativeSQL(String sql) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -756,6 +770,7 @@ public class ConnectionPoolConnection implements Connection {
       return conn.nativeSQL(sql);
    }
 
+   @Override
    public void setAutoCommit(boolean autoCommit) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -777,10 +792,12 @@ public class ConnectionPoolConnection implements Connection {
       }
    }
 
+   @Override
    public boolean getAutoCommit() throws SQLException {
       return conn.getAutoCommit();
    }
 
+   @Override
    public void commit() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -791,6 +808,7 @@ public class ConnectionPoolConnection implements Connection {
       transactionState = TransactionState.COMPLETED;
    }
 
+   @Override
    public void rollback() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -801,10 +819,12 @@ public class ConnectionPoolConnection implements Connection {
       transactionState = TransactionState.COMPLETED;
    }
 
+   @Override
    public boolean isClosed() {
       return transactionState == TransactionState.CLOSED;
    }
 
+   @Override
    public DatabaseMetaData getMetaData() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -814,38 +834,62 @@ public class ConnectionPoolConnection implements Connection {
       return conn.getMetaData();
    }
 
+   @Override
    public void setReadOnly(boolean readOnly) throws SQLException {
-      //Ignore - this must be set on real connection open. TODO
+
+      if(transactionState == TransactionState.CLOSED) {
+         throw new SQLException("Operation not permitted on closed connection", JDBConnection.SQLSTATE_CONNECTION_EXCEPTION);
+      }
+
+      conn.setReadOnly(readOnly);
    }
 
+   @Override
    public boolean isReadOnly() throws SQLException {
       return conn.isReadOnly();
    }
 
+   @Override
    public void setCatalog(String catalog) throws SQLException {
-      //Ignore - this must be set on real connection open. TODO
+
+      if(transactionState == TransactionState.CLOSED) {
+         throw new SQLException("Operation not permitted on closed connection", JDBConnection.SQLSTATE_CONNECTION_EXCEPTION);
+      }
+
+      conn.setCatalog(catalog);
    }
 
+   @Override
    public String getCatalog() throws SQLException {
       return conn.getCatalog();
    }
 
+   @Override
    public void setTransactionIsolation(int level) throws SQLException {
-      //Ignore - this must be set on real connection open. TODO
+
+      if(transactionState == TransactionState.CLOSED) {
+         throw new SQLException("Operation not permitted on closed connection", JDBConnection.SQLSTATE_CONNECTION_EXCEPTION);
+      }
+
+      conn.setTransactionIsolation(level);
    }
 
+   @Override
    public int getTransactionIsolation() throws SQLException {
       return conn.getTransactionIsolation();
    }
 
+   @Override
    public SQLWarning getWarnings() throws SQLException {
       return conn.getWarnings();
    }
 
+   @Override
    public void clearWarnings() throws SQLException {
       //Ignore
    }
 
+   @Override
    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -861,6 +905,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -876,6 +921,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -891,6 +937,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public java.util.Map<String, Class<?>> getTypeMap() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -900,14 +947,27 @@ public class ConnectionPoolConnection implements Connection {
       return conn.getTypeMap();
    }
 
+   @Override
    public void setTypeMap(java.util.Map<String, Class<?>> map) throws SQLException {
-      //Ignore - this must be done on real connection construction. TODO.
+
+      if(transactionState == TransactionState.CLOSED) {
+         throw new SQLException("Operation not permitted on closed connection", JDBConnection.SQLSTATE_CONNECTION_EXCEPTION);
+      }
+
+      conn.setTypeMap(map);
    }
 
+   @Override
    public void setHoldability(int holdability) throws SQLException {
-      //Ignore - this must be done on real connection construction. TODO.
+
+      if(transactionState == TransactionState.CLOSED) {
+         throw new SQLException("Operation not permitted on closed connection", JDBConnection.SQLSTATE_CONNECTION_EXCEPTION);
+      }
+
+      conn.setHoldability(holdability);
    }
 
+   @Override
    public int getHoldability() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -917,6 +977,7 @@ public class ConnectionPoolConnection implements Connection {
       return conn.getHoldability();
    }
 
+   @Override
    public Savepoint setSavepoint() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -926,6 +987,7 @@ public class ConnectionPoolConnection implements Connection {
       return conn.setSavepoint();
    }
 
+   @Override
    public Savepoint setSavepoint(String name) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -935,6 +997,7 @@ public class ConnectionPoolConnection implements Connection {
       return conn.setSavepoint(name);
    }
 
+   @Override
    public void rollback(Savepoint savepoint) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -945,6 +1008,7 @@ public class ConnectionPoolConnection implements Connection {
       conn.rollback(savepoint);
    }
 
+   @Override
    public void releaseSavepoint(Savepoint savepoint) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -954,6 +1018,7 @@ public class ConnectionPoolConnection implements Connection {
       conn.releaseSavepoint(savepoint);
    }
 
+   @Override
    public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -969,6 +1034,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -980,6 +1046,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -995,6 +1062,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1010,6 +1078,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public PreparedStatement prepareStatement(String sql, int columnIndexes[]) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1025,6 +1094,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public PreparedStatement prepareStatement(String sql, String columnNames[]) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1040,6 +1110,7 @@ public class ConnectionPoolConnection implements Connection {
       return stmt;
    }
 
+   @Override
    public Clob createClob() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1049,6 +1120,7 @@ public class ConnectionPoolConnection implements Connection {
       return conn.createClob();
    }
 
+   @Override
    public Blob createBlob() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1058,6 +1130,7 @@ public class ConnectionPoolConnection implements Connection {
       return conn.createBlob();
    }
 
+   @Override
    public NClob createNClob() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1067,6 +1140,7 @@ public class ConnectionPoolConnection implements Connection {
       return conn.createNClob();
    }
 
+   @Override
    public SQLXML createSQLXML() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1076,18 +1150,25 @@ public class ConnectionPoolConnection implements Connection {
       return conn.createSQLXML();
    }
 
+   @Override
    public boolean isValid(int timeout) throws SQLException {
-      return transactionState != TransactionState.CLOSED;
+      if(transactionState == TransactionState.CLOSED) {
+         return false;
+      }
+      return conn.isValid(timeout);
    }
 
+   @Override
    public void setClientInfo(String name, String value) throws SQLClientInfoException {
-      //Ignore - this must be done on real connection construction. TODO.
+      conn.setClientInfo(name, value);
    }
 
+   @Override
    public void setClientInfo(Properties properties) throws SQLClientInfoException {
-      //Ignore - this must be done on real connection construction. TODO.
+      conn.setClientInfo(properties);
    }
 
+   @Override
    public String getClientInfo(String name) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1097,6 +1178,7 @@ public class ConnectionPoolConnection implements Connection {
       return conn.getClientInfo(name);
    }
 
+   @Override
    public Properties getClientInfo() throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1106,6 +1188,7 @@ public class ConnectionPoolConnection implements Connection {
       return conn.getClientInfo();
    }
 
+   @Override
    public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1115,6 +1198,7 @@ public class ConnectionPoolConnection implements Connection {
       return conn.createArrayOf(typeName, elements);
    }
 
+   @Override
    public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
 
       if(transactionState == TransactionState.CLOSED) {
@@ -1124,33 +1208,65 @@ public class ConnectionPoolConnection implements Connection {
       return conn.createStruct(typeName, attributes);
    }
 
+   @Override
    public <T> T unwrap(Class<T> iface) throws SQLException {
       return conn.unwrap(iface);
    }
 
+   @Override
    public boolean isWrapperFor(Class<?> iface) throws SQLException {
       return conn.isWrapperFor(iface);
    }
 
-   /* Java 7 - JDBC 4 */
+   /* Java 7 - JDBC 4.1 */
 
+   @Override
    public void setSchema(String schema) throws SQLException {
-      throw new SQLFeatureNotSupportedException();
+
+      if(transactionState == TransactionState.CLOSED) {
+         throw new SQLException("Operation not permitted on closed connection", JDBConnection.SQLSTATE_CONNECTION_EXCEPTION);
+      }
+
+      conn.setSchema(schema);
    }
 
+   @Override
    public String getSchema() throws SQLException {
-      throw new SQLFeatureNotSupportedException();
+
+      if(transactionState == TransactionState.CLOSED) {
+         throw new SQLException("Operation not permitted on closed connection", JDBConnection.SQLSTATE_CONNECTION_EXCEPTION);
+      }
+
+      return conn.getSchema();
    }
 
+   @Override
    public void abort(Executor executor) throws SQLException {
-      throw new SQLFeatureNotSupportedException();
+
+      if(transactionState == TransactionState.CLOSED) {
+         throw new SQLException("Operation not permitted on closed connection", JDBConnection.SQLSTATE_CONNECTION_EXCEPTION);
+      }
+
+      conn.abort(executor);
    }
 
+   @Override
    public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
-      throw new SQLFeatureNotSupportedException();
+
+      if(transactionState == TransactionState.CLOSED) {
+         throw new SQLException("Operation not permitted on closed connection", JDBConnection.SQLSTATE_CONNECTION_EXCEPTION);
+      }
+
+      conn.setNetworkTimeout(executor, milliseconds);
    }
 
+   @Override
    public int getNetworkTimeout() throws SQLException {
-      throw new SQLFeatureNotSupportedException();
+
+      if(transactionState == TransactionState.CLOSED) {
+         throw new SQLException("Operation not permitted on closed connection", JDBConnection.SQLSTATE_CONNECTION_EXCEPTION);
+      }
+
+      return conn.getNetworkTimeout();
    }
 }

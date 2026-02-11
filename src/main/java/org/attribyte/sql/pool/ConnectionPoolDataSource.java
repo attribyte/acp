@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Attribyte, LLC
+ * Copyright 2014-2026 Attribyte Labs, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ public class ConnectionPoolDataSource implements DataSource {
       return pool.getConnection();
    }
 
+   @Override
    public Connection getConnection(String username, String password) throws SQLException {
       return pool.getConnection();
    }

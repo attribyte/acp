@@ -7,25 +7,11 @@ import com.typesafe.config.*;
 import org.attribyte.api.InitializationException;
 import org.attribyte.api.Logger;
 
-import java.io.File;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class TypesafeConfig {
-
-   public static void main(String[] args) throws Exception {
-
-      File configFile = new File("/home/matt/hg/acp/doc/config/sample.config");
-      Config rootConfig = ConfigFactory.parseFile(configFile);
-      List<ConnectionPool.Initializer> pools = poolsFromConfig(rootConfig, null, null);
-      for(ConnectionPool.Initializer poolInit : pools) {
-         ConnectionPool pool = poolInit.createPool();
-         System.out.println(pool.getName());
-         System.out.println("Total Segments: " + pool.getTotalSegments());
-
-      }
-   }
 
    static final int MISSING_INT = Integer.MIN_VALUE;
    static final long MISSING_LONG = Long.MIN_VALUE;

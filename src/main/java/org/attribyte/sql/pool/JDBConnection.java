@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 Attribyte, LLC
+ * Copyright 2010-2026 Attribyte Labs, LLC
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); 
  * you may not use this file except in compliance with the License. 
@@ -21,12 +21,14 @@ import org.attribyte.api.InitializationException;
 import javax.sql.DataSource;
 
 /**
- * A JDBC connection.
+ * Immutable configuration for a database connection, including
+ * the connection string or {@code DataSource}, credentials,
+ * test SQL, and timeout settings.
  */
 public class JDBConnection {
 
    /**
-    * Initialize an immutable connection.
+    * Initializes and creates an immutable connection configuration.
     */
    public static class Initializer {
 
@@ -116,7 +118,7 @@ public class JDBConnection {
        * When debug mode is {@code true} the call site of connection
        * acquisitions is recorded and available for exceptions.
        * </p>
-       * @param debug The deebug mode.
+       * @param debug The debug mode.
        * @return A self-reference.
        */
       public Initializer setDebug(final boolean debug) {

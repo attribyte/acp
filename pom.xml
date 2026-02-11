@@ -48,7 +48,7 @@
         <developer>
             <name>Matt Hamer</name>
             <email>matt@attribyte.com</email>
-            <organization>Attribyte LLC</organization>
+            <organization>Attribyte Labs, LLC</organization>
             <organizationUrl>https://attribyte.com/oss</organizationUrl>
         </developer>
     </developers>
@@ -61,12 +61,12 @@
         <dependency>
             <groupId>org.attribyte</groupId>
             <artifactId>attribyte-shared-base</artifactId>
-            <version>1.0.4</version>
+            <version>1.1.1</version>
         </dependency>
         <dependency>
             <groupId>io.dropwizard.metrics</groupId>
             <artifactId>metrics-core</artifactId>
-            <version>4.0.7</version>
+            <version>4.2.38</version>
         </dependency>
         <dependency>
             <groupId>org.attribyte</groupId>
@@ -76,12 +76,12 @@
         <dependency>
             <groupId>com.typesafe</groupId>
             <artifactId>config</artifactId>
-            <version>1.4.1</version>
+            <version>1.4.5</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>29.0-jre</version>
+            <version>33.5.0-jre</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -95,7 +95,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.7.0</version>
+                <version>3.15.0</version>
                 <configuration>
                     <showWarnings>true</showWarnings>
                     <showDeprecation>true</showDeprecation>
@@ -107,13 +107,24 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.11.2</version>
+                <configuration>
+                    <source>8</source>
+                    <doclint>none</doclint>
+                    <quiet>true</quiet>
+                    <outputDirectory>${project.basedir}/docs</outputDirectory>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.20.1</version>
+                <version>3.5.4</version>
                 <dependencies>
                     <dependency>
                         <groupId>org.apache.maven.surefire</groupId>
                         <artifactId>surefire-junit47</artifactId>
-                        <version>2.20.1</version>
+                        <version>3.5.4</version>
                     </dependency>
                 </dependencies>
                 <configuration>

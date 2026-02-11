@@ -1,5 +1,5 @@
 /*
- * Copyright 2010,2012 Attribyte, LLC
+ * Copyright 2010-2026 Attribyte Labs, LLC
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); 
  * you may not use this file except in compliance with the License. 
@@ -188,7 +188,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * pool.remotePool.segment1.acquireTimeout=10ms
  * pool.remotePool.segment1.size=10
  * </pre>
- * @author Matt Hamer - Attribyte, LLC
+ * @author Matt Hamer - Attribyte Labs, LLC
  */
 public class ConnectionPool implements ConnectionSupplier {
 
@@ -255,7 +255,9 @@ public class ConnectionPool implements ConnectionSupplier {
        * @return The fraction.
        */
       public float getActiveConnectionUtilization() {
-         if(activeConnections >= availableConnections) {
+         if(availableConnections == 0) {
+            return 0.0f;
+         } else if(activeConnections >= availableConnections) {
             return 1.0f;
          } else {
             return (float)activeConnections / (float)availableConnections;
@@ -267,7 +269,9 @@ public class ConnectionPool implements ConnectionSupplier {
        * @return The percent.
        */
       public float getAvailableConnectionUtilization() {
-         if(activeConnections >= maxConnections) {
+         if(maxConnections == 0) {
+            return 0.0f;
+         } else if(activeConnections >= maxConnections) {
             return 1.0f;
          } else {
             return (float)activeConnections / (float)maxConnections;
@@ -760,7 +764,9 @@ public class ConnectionPool implements ConnectionSupplier {
       this.activeConnectionUtilizationGauge = () -> {
          final int avail = getAvailableConnections();
          final int active = getActiveConnections();
-         if(active >= avail) {
+         if(avail == 0) {
+            return 0.0f;
+         } else if(active >= avail) {
             return 1.0f;
          } else {
             return (float)(active) / (float)avail;
@@ -769,7 +775,9 @@ public class ConnectionPool implements ConnectionSupplier {
       this.availableConnectionUtilizationGauge = () -> {
          final int max = getMaxConnections();
          final int active = getActiveConnections();
-         if(active >= max) {
+         if(max == 0) {
+            return 0.0f;
+         } else if(active >= max) {
             return 1.0f;
          } else {
             return (float)active / (float)max;
@@ -892,8 +900,8 @@ public class ConnectionPool implements ConnectionSupplier {
    }
 
    /**
-    * Closes an unumanged connection.
-    * @param conn The conneciton.
+    * Closes an unmanaged connection.
+    * @param conn The connection.
     * @throws SQLException If close fails.
     */
    public final void closeUnmanagedConnection(final Connection conn) throws SQLException {

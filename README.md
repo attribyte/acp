@@ -13,21 +13,13 @@ ACP was originally created in 2010. I was motivated to create ACP
 because, at the time, I couldn't find a pool that was instrumented the way I needed, or capable of being carefully tuned to
 supply "backpressure" when flooded with connection requests.
 (The best candidate, [BoneCP](https://github.com/wwadge/bonecp),
-was just being developed. [HikariCP](https://github.com/brettwooldridge/HikariCP) is quite new.)
+was just being developed. [HikariCP](https://github.com/brettwooldridge/HikariCP) was quite new and is, today, pretty much the default connection pool.)
 For several years it reliably provided connections for Gawker Media's publishing system.
-It was migrated from Bitbucket in 2014. While moving it to Github, a few things have been tweaked:
-
-* Now requires Java 8.
-* Added more control of close behavior when "activity timeout" is configured.
-* Added ability to disable statement tracking.
-* Removed XML/DOM-based configuration in favor of HOCON (or <code>Properties</code>).
-* Simplified programmatic configuration.
-* Better metrics.
 
 ## Performance
 Here's the result of a "quick" run of the HikariCP benchmark. Not bad. The connection pool has never been a bottleneck
 in any Attribyte system, so I have spent little time trying to optimize ACP. Note that pool instrumentation
-is always enabled (timing, metring of connection acquisitions, etc.). Turning this off might improve the score,
+is always enabled (timing, metering of connection acquisitions, etc.). Turning this off might improve the score,
 but I've never experienced a situation where (possibly) better connection pool performance was more important than
 pool monitoring.
 <pre><code><small>
@@ -78,87 +70,125 @@ power management:
 
 ## Documentation
 
-[Javadocs](https://attribyte.com/projects/acp/javadoc)
+[Javadoc](https://attribyte.github.io/acp/apidocs/)
 
 ## Configuration
 
 Connection pools may be created and configured programmatically, from Java properties,
 or [HOCON](https://github.com/typesafehub/config#using-hocon-the-json-superset) format.
-The most common configuration settings are documented below and a
-[sample properties file](https://github.com/attribyte/acp/blob/master/doc/config/sample.properties) is included.
+All configuration parameters are documented below. A
+[sample HOCON config](https://github.com/attribyte/acp/blob/master/doc/config/sample.config) and
+[sample properties file](https://github.com/attribyte/acp/blob/master/doc/config/sample.properties) are included.
 
+Defaults are provided by `reference.conf` in the distributed jar. Parameters marked *Required*
+must be supplied in your configuration.
+
+### Connection Parameters
+
+<dl>
+ <dt>user</dt>
+ <dd><em>Required.</em> The database user.</dd>
+ <dt>password</dt>
+ <dd><em>Required.</em> The database password.</dd>
+ <dt>connectionString</dt>
+ <dd><em>Required.</em> The JDBC connection string.</dd>
+ <dt>testSQL</dt>
+ <dd>SQL statement used to test connections. If empty, connections are not tested periodically.</dd>
+ <dt>testInterval</dt>
+ <dd>The interval between periodic connection tests. Default <tt>60s</tt>.</dd>
+ <dt>createTimeout</dt>
+ <dd>The maximum time to wait when creating a new physical connection. Default <tt>60s</tt>.</dd>
+ <dt>debug</dt>
+ <dd>When <tt>true</tt>, the call site of connection acquisitions is recorded and available for exceptions. Default <tt>false</tt>.</dd>
+ <dt>properties</dt>
+ <dd>A reference to a named set of global properties that are appended to the connection string as query parameters.</dd>
+</dl>
+
+### Pool Parameters
+
+<dl>
+ <dt>minActiveSegments</dt>
+ <dd>The minimum number of segments that must remain active. Default <tt>1</tt>.</dd>
+ <dt>startActiveSegments</dt>
+ <dd>The number of segments activated on pool startup. Default <tt>1</tt>.</dd>
+ <dt>saturatedAcquireTimeout</dt>
+ <dd><em>Required.</em> The maximum time to block waiting for an available connection when all active segments are saturated. A value of <tt>0</tt> means no waiting.</dd>
+ <dt>idleCheckInterval</dt>
+ <dd>The interval between checks for idle segments that can be deactivated. Default <tt>30s</tt>.</dd>
+</dl>
+
+### Segment Parameters
+
+Segments are defined either as a list under a `segments` key or as named objects within the pool configuration.
+A segment can `clone` another segment, inheriting all of its properties with overrides.
 
 <dl>
  <dt>name</dt>
- <dd>The pool name. Required.</dd>
- <dt>minActiveSegments</dt>
- <dd>The minimum number of active segments. Default <tt>1</tt>.</dd>
- <dt>saturatedAcquireTimeout</dt>
- <dd>The maximum amount of time to block waiting for an available connection. Default <tt>0ms</tt>.</dd>
- <dt>idleCheckInterval</dt>
- <dd>The time between idle segment checks. Default <tt>60s</tt>.</dd>
- <dt>segments</dt>
- <dd>The number of segments. Default <tt>1</tt>.</dd>
- <dt>activeSegments</dt>
- <dd>The number of segments active on start. Default <tt>1</tt>.</dd>
- <dt>connection.user</dt>
- <dd>The database user.</dd>
- <dt>connection.password</dt>
- <dd>The database password.<dd>
- <dt>connection.url</dt>
- <dd>The database connection string.</dd>
- <dt>connection.testSQL</dt>
- <dd>SQL used for connection tests.</dd>
- <dt>connection.debug</dt>
- <dd>Is connection debug mode turned on?</dd>
- <dt>connection.testInterval</dt>
- <dd>The interval between connection tests. Default <tt>60s</tt>.</dd>
- <dt>connection.maxWait</dt>
- <dd>The maximum amount of time to wait for a database connection before giving up. Default <tt>0s</tt>.</dd>
- <dt>segment.size</dt>
- <dd>The number of connections in each segment. Required.</dd>
- <dt>segment.closeConcurrency</dt>
- <dd>The number of background threads processing connection close. If <tt>0</tt>,
+ <dd><em>Required.</em> The segment name.</dd>
+ <dt>size</dt>
+ <dd><em>Required.</em> The number of physical connections in this segment.</dd>
+ <dt>connectionName</dt>
+ <dd><em>Required.</em> A reference to a named connection configuration.</dd>
+ <dt>clone</dt>
+ <dd>The name of another segment to copy configuration from. Properties specified alongside <tt>clone</tt> override the cloned values.</dd>
+ <dt>acquireTimeout</dt>
+ <dd><em>Required.</em> The maximum time to wait for a connection from this segment before trying the next segment.</dd>
+ <dt>activeTimeout</dt>
+ <dd>The maximum time a logical connection may be held open before the activity timeout policy is applied. Default <tt>60s</tt>.</dd>
+ <dt>connectionLifetime</dt>
+ <dd>The maximum lifetime of a physical connection before it is closed and replaced. Default <tt>15m</tt>.</dd>
+ <dt>idleTimeBeforeShutdown</dt>
+ <dd>The time a segment must be idle before it is eligible for deactivation. Default <tt>30s</tt>.</dd>
+ <dt>minActiveTime</dt>
+ <dd>The minimum time a segment must be active before it is eligible for deactivation. Default <tt>30s</tt>.</dd>
+ <dt>closeConcurrency</dt>
+ <dd>The number of background threads used to process connection close. If <tt>0</tt>,
  close blocks in the application thread. Default <tt>0</tt>.</dd>
- <dt>segment.reconnectConcurrency</dt>
- <dd>The maximum number of concurrent database reconnects. Default <tt>1</tt>.</dd>
- <dt>segment.testOnLogicalOpen</dt>
- <dd>Should connections be tested when they are acquired? Default <tt>false</tt>.</dd>
- <dt>segment.testOnLogicalClose</dt>
- <dd>Should connections be tested when they are released? Default <tt>false</tt>.</dd>
- <dt>segment.acquireTimeout</dt>
- <dd>The maximum amount of time to wait for a segment connection to become available. Default <tt>0ms</tt>.</dd>
- <dt>segment.activeTimeout</dt>
- <dd>The maximum amount of time a logical connection may be open before it is forcibly closed. Default <tt>5m</tt>.</dd>
- <dt>segment.connectionLifetime</dt>
- <dd>The maximum amount of time a physical connection may be open. Default <tt>1h</tt>.</dd>
- <dt>segment.maxReconnectWait</dt>
- <dd>The maximum amount of time to wait between physical connection attempts on failure. Default <tt>30s</tt>.</dd>
+ <dt>reconnectConcurrency</dt>
+ <dd>The maximum number of concurrent physical reconnect attempts. Default <tt>2</tt>.</dd>
+ <dt>reconnectMaxWaitTime</dt>
+ <dd>The maximum delay between reconnect attempts after a connection failure. Uses exponential backoff up to this limit. Default <tt>1m</tt>.</dd>
+ <dt>testOnLogicalOpen</dt>
+ <dd>Test connections when they are acquired from the pool. Default <tt>false</tt>.</dd>
+ <dt>testOnLogicalClose</dt>
+ <dd>Test connections when they are returned to the pool. Default <tt>false</tt>.</dd>
+ <dt>closeTimeLimit</dt>
+ <dd>The maximum time to wait for a connection close operation to complete. Default <tt>10s</tt>.</dd>
+ <dt>activeTimeoutMonitorFrequency</dt>
+ <dd>The frequency at which active connections are checked for timeout. Default <tt>30s</tt>.</dd>
 </dl>
 
-## Building
+### Policy Parameters
 
-The build uses [Apache Ant](http://ant.apache.org/) and
-[Apache Ivy](https://ant.apache.org/ivy/) to resolve dependencies. The following ant tasks
-are available:
+These control how the pool handles various edge cases. All are segment-level settings.
 
-* compile - Compiles the source
-* dist - Resolves dependencies, compiles the source, and creates a jar in dist/lib. This is the default task.
-* full-dist - Resolves dependencies, compiles the source, creates a jar in dist/lib, and copies dependencies to dist/extlib
-* clean - Removes all build files and jars.
+<dl>
+ <dt>incompleteTransactionPolicy</dt>
+ <dd>How to handle a connection returned with an incomplete transaction.
+ Values: <tt>report</tt> (log a warning), <tt>commit</tt>, <tt>rollback</tt>. Default <tt>report</tt>.</dd>
+ <dt>openStatementPolicy</dt>
+ <dd>How to handle a connection returned with open statements.
+ Values: <tt>none</tt> (don't track), <tt>silent</tt> (close silently), <tt>report</tt> (close and log). Default <tt>report</tt>.</dd>
+ <dt>forceRealClosePolicy</dt>
+ <dd>What to close when a physical connection is forcibly terminated.
+ Values: <tt>none</tt>, <tt>connection</tt>, <tt>connectionWithLimit</tt> (close with time limit), <tt>statementsAndConnection</tt>. Default <tt>connectionWithLimit</tt>.</dd>
+ <dt>activityTimeoutPolicy</dt>
+ <dd>How to handle a connection that exceeds its active timeout.
+ Values: <tt>log</tt> (log a warning), <tt>forceClose</tt> (forcibly close the connection). Default <tt>log</tt>.</dd>
+</dl>
 
 ## Dependencies
 
 * [Attribyte shared-base](https://github.com/attribyte/shared-base)
-* [Apache commons-codec](http://commons.apache.org/proper/commons-codec/)
-* [Google Guava](https://code.google.com/p/guava-libraries/)
-* [Dropwizard Metrics](http://metrics.codahale.com/)
-* [Typesafe Config](https://github.com/typesafehub/config)
+* [Google Guava](https://github.com/google/guava)
+* [Dropwizard Metrics](https://metrics.dropwizard.io/)
+* [Essem Metrics](https://github.com/attribyte/essem-reporter)
+* [Typesafe Config](https://github.com/lightbend/config)
 
 
 ## License
 
-Copyright 2014 [Attribyte, LLC](https://attribyte.com)
+Copyright 2010-2026 [Attribyte Labs, LLC](https://attribyte.com)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
