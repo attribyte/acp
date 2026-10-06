@@ -50,10 +50,6 @@ final class Clock {
               0, RESOLUTION_MILLIS, TimeUnit.MILLISECONDS);
    }
 
-   /**
-    * Shuts down the clock executor immediately.
-    */
-   static void shutdown() {
-      clockService.shutdownNow();
-   }
+   // No shutdown: the clock is shared by every pool in the JVM, so a pool that stopped it froze the
+   // time for every other pool. Its executor is an "exiting" one, which does not keep the JVM alive.
 }

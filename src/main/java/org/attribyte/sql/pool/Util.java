@@ -149,23 +149,24 @@ final class Util {
 
    /**
     * The executor for time limiters.
+    * <p>
+    *   Shared by every pool in the JVM, so no pool may shut it down: a pool that did took it from
+    *   every other pool, which could then neither open a connection with a time limit nor close one.
+    *   An application that shut two pools down in turn saw the second log "Connection close error ...
+    *   rejected from ThreadPoolExecutor[Terminated" for every connection it held, and left them open.
+    * </p>
+    * <p>
+    *   It needs no shutdown: its threads are daemons, so they never keep the JVM alive, and every
+    *   thread, the core one included, ends after a minute idle.
+    * </p>
     */
-   private static final ThreadPoolExecutor timeLimiterExecutor = (new ThreadPoolExecutor(1, 256,
-           60L, TimeUnit.SECONDS,
-           new SynchronousQueue<>(), createThreadFactoryBuilder("SimpleTimeLimiter")));
-
-   /**
-    * Shutdown the time limiter normally.
-    */
-   static final void shutdownTimeLimiter() {
-      timeLimiterExecutor.shutdown();
-   }
-
-   /**
-    * Shutdown the time limiter immediately.
-    */
-   static final List<Runnable> shutdownTimeLimiterNow() {
-      return timeLimiterExecutor.shutdownNow();
+   private static final ThreadPoolExecutor timeLimiterExecutor;
+   static {
+      timeLimiterExecutor = new ThreadPoolExecutor(1, 256,
+              60L, TimeUnit.SECONDS,
+              new SynchronousQueue<>(),
+              new ThreadFactoryBuilder().setNameFormat("ACP:SimpleTimeLimiter-Thread-%d").setDaemon(true).build());
+      timeLimiterExecutor.allowCoreThreadTimeOut(true);
    }
 
    /**

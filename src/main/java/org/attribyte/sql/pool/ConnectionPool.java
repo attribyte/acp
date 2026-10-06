@@ -1047,10 +1047,8 @@ public class ConnectionPool implements ConnectionSupplier {
          logInfo("Shutting down inactive monitor service...");
          inactiveMonitorService.shutdownNow();
 
-         Clock.shutdown();
-
-         logInfo("Shutting down the time limiter...");
-         Util.shutdownTimeLimiter();
+         // The clock and the time limiter are shared by every pool in the JVM and are left running:
+         // another pool may still be using them, and neither keeps the JVM alive. See Util and Clock.
 
          logInfo("Shutdown complete!");
       }
@@ -1088,13 +1086,8 @@ public class ConnectionPool implements ConnectionSupplier {
          logInfo("Shutting down inactive monitor service...");
          inactiveMonitorService.shutdownNow();
 
-         Clock.shutdown();
+         // The shared clock and time limiter are left running, as in shutdown().
 
-         logInfo("Shutting down the time limiter...");
-         List<Runnable> waiting = Util.shutdownTimeLimiterNow();
-         if(!waiting.isEmpty()) {
-            logInfo(String.format("Time limiter had %d waiting tasks!", waiting.size()));
-         }
          logInfo("Shutdown complete!");
       }
    }
